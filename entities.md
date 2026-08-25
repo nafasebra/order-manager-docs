@@ -1,6 +1,6 @@
 # Entities
 
-Logical data model for the admin dashboard. Field lists follow [requirements.md](./requirements.md). Physical types and table names are left to implementation; see [system-design.md](./system-design.md) and [adr.md](./adr.md).
+Logical data model for the staff and seller dashboards. Field lists follow [requirements.md](./requirements.md). Physical types and table names are left to implementation; see [system-design.md](./system-design.md) and [adr.md](./adr.md).
 
 Related: [use-case.md](./use-case.md) · [data-flow.md](./data-flow.md) · [edge-case.md](./edge-case.md)
 
@@ -28,6 +28,7 @@ erDiagram
   Buyer ||--o{ CrmNote : profile
   Buyer }o--o{ Tag : tagged
 
+  Seller ||--o{ AuditLog : performs
   Seller ||--o{ SellerDeliveryMethod : offers
   Seller ||--o{ Product : lists
   Seller ||--o{ OrderLineItem : fulfills
@@ -112,7 +113,9 @@ Named permission bundle (e.g. “Support”, “Catalog editor”).
 | Field | Notes |
 |-------|--------|
 | id | |
-| actor_admin_id | Null if system job |
+| actor_admin_id | Null if system job or seller actor |
+| actor_seller_id | Set when the actor is a seller dashboard user |
+| actor_type | `admin`, `seller`, `system` |
 | action | e.g. `order.status_change`, `admin.suspend`, `product.remove`, `invoice.void`, `transaction.refund` |
 | entity_type, entity_id | |
 | reason | Required for cancel, void, refund, override |
@@ -155,16 +158,21 @@ Orders **copy** address fields onto the order at placement so later edits do not
 
 ### Seller
 
+Marketplace vendor. Staff manage the record. The seller **also signs in** to a seller dashboard (analytics, tickets from buyers, products).
+
 | Field | Notes |
 |-------|--------|
 | id | |
 | display_name | Business / storefront name |
 | contact_name, contact_email, contact_phone | |
+| login_email | Unique dashboard login; may match contact email |
+| password_hash | Seller dashboard credentials; never exposed in API |
+| last_login_at | Seller dashboard |
 | linked_buyer_id | Optional, when the vendor also has a buyer profile |
 | workplace_address_text | |
 | workplace_geo | Optional lat/lng or map place id |
 | support_channel_settings | JSON: how buyers reach this seller |
-| status | `enabled`, `disabled` |
+| status | `enabled`, `disabled` — disabled blocks seller login |
 | created_at, updated_at, deleted_at | Soft-delete |
 
 ### SellerDeliveryMethod
@@ -267,7 +275,8 @@ Recommended for audit of stock adjustments.
 | variant_id or product_id | |
 | delta | |
 | reason | `manual`, `order_reserve`, `order_release`, `correction` |
-| actor_admin_id | Null if system |
+| actor_admin_id | Null if system or seller |
+| actor_seller_id | Set when adjusted from seller dashboard |
 | created_at | |
 
 ---
@@ -526,7 +535,7 @@ Email/notification tracking: `sent`, `opened`, `clicked` — only when an ESP is
 | status | `open`, `in_progress`, `waiting`, `resolved`, `closed` |
 | requester_buyer_id | |
 | seller_id | Required for `buyer_seller`; null for `site` |
-| assignee_admin_id | |
+| assignee_admin_id | Staff assignee; seller works the ticket via seller_id, not this field |
 | related_order_id, related_product_id | Optional |
 | created_at, updated_at | |
 
@@ -538,10 +547,11 @@ Email/notification tracking: `sent`, `opened`, `clicked` — only when an ESP is
 | ticket_id | |
 | author_type | `admin`, `buyer`, `seller`, `system` |
 | author_admin_id | When admin |
+| author_seller_id | When seller replies from seller dashboard |
 | body | |
 | created_at | |
 
-Phase 1: buyer/seller messages may be ingested from storefront or created by staff on their behalf. Seller is not a dashboard user by default.
+Seller dashboard users persist messages with `author_type = seller`. Staff may still proxy a seller-looking message only with audit. Site-support tickets have `seller_id` null and are never listed on the seller dashboard.
 
 ---
 
@@ -570,7 +580,7 @@ Treat these as consistency boundaries:
 | **Product** | Images, variants, stock; publish rules |
 | **Ticket** | Messages; assignment; type-specific seller |
 | **AdminUser** | Grants; cannot remove last superuser |
-| **Buyer / Seller** | Addresses / delivery methods; anonymize |
+| **Buyer / Seller** | Addresses / delivery methods; anonymize; seller login; disable blocks dashboard |
 | **ProductReport** | Resolution action required on approve |
 | **Transaction** | Refundable balance computed from siblings on the same order/payment |
 
@@ -580,8 +590,8 @@ Treat these as consistency boundaries:
 
 | Phase | Entities to persist |
 |-------|---------------------|
-| **MVP** | AdminUser, PermissionGrant, RoleTemplate, AuditLog (minimal), Buyer, Address, Seller, SellerDeliveryMethod, Product, ProductImage, ProductVariant, StockMovement, Order, OrderLineItem, OrderStatusHistory, Ticket (type `site`), TicketMessage |
-| **Phase 2** | Invoice*, Transaction, Review, Question, Answer, ProductReport, Ticket type `buyer_seller`, OrderSplit if not in MVP |
-| **Phase 3** | Campaign, Coupon*, Banner, CrmNote, Tag, CrmTask, BlogPost, BlogComment, richer AuditLog UI, analytics projections |
+| **MVP** | AdminUser, PermissionGrant, RoleTemplate, AuditLog (minimal), Buyer, Address, Seller (including login fields), SellerDeliveryMethod, Product, ProductImage, ProductVariant, StockMovement, Order, OrderLineItem, OrderStatusHistory, Ticket (type `site`), TicketMessage |
+| **Phase 2** | Invoice*, Transaction, Review, Question, Answer, ProductReport, Ticket type `buyer_seller` (seller dashboard tickets), OrderSplit if not in MVP |
+| **Phase 3** | Campaign, Coupon*, Banner, CrmNote, Tag, CrmTask, BlogPost, BlogComment, richer AuditLog UI, analytics projections (staff and seller-scoped) |
 
 \*Coupons may be needed earlier if the storefront already discounts; the **dashboard** CRM/marketing UI is phase 3.

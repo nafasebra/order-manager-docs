@@ -2,18 +2,18 @@
 
 ## 1. Overview
 
-A centralized admin dashboard for managing an e-commerce marketplace. The platform connects **buyers** and **sellers**, handles orders end-to-end, and provides tools for analytics, marketing, CRM, content, and support.
+A centralized dashboard product for an e-commerce marketplace. **Staff** (superuser/admin/support) operate the whole platform. **Sellers** have their own dashboard, limited to their shop.
 
 **Goals**
 
 - Give staff a single place to operate the storefront and marketplace.
+- Give each **seller** a dashboard to run their own shop: analytics, tickets from buyers, and product management.
 - Support role-based access so each admin sees only what they need.
 - Provide full visibility and control for superusers.
 
 **Out of scope (for now)**
 
 - Public storefront / buyer-facing shop UI
-- Seller self-service portal (unless noted as future work)
 - Payment gateway integration details (captured at transaction level only)
 
 ---
@@ -24,25 +24,33 @@ A centralized admin dashboard for managing an e-commerce marketplace. The platfo
 |------|-------------|
 | **Superuser** | Full access to every module, all data, and admin management (promote/demote admins, assign permissions). |
 | **Admin** | Access scoped by assigned permissions (see §15). |
-| **Buyer** | End customer (managed via dashboard; not a dashboard user). |
-| **Seller** | Marketplace vendor (managed via dashboard; not a dashboard user by default). |
-| **Support** | Supporting users (Buyer and sellers) |
+| **Buyer** | End customer (managed via staff dashboard; not a dashboard user). |
+| **Seller** | Marketplace vendor. **Has a seller dashboard** (analytics, tickets from buyers, manage products). Also managed as a record by staff. |
+| **Support** | Supporting users (buyers and sellers) |
 
 ---
 
 ## 3. Global Dashboard Requirements
 
+Two shells share these rules: **staff dashboard** and **seller dashboard**.
+
 - Responsive layout usable on desktop (primary) and tablet.
-- Global search across orders, buyers, sellers, products, and tickets (stretch goal).
-- Audit trail for sensitive actions (admin changes, order status updates, product removals).
+- Staff: global search across orders, buyers, sellers, products, and tickets (stretch goal). Seller: search only own products and buyer tickets (stretch).
+- Audit trail for sensitive actions (admin changes, order status updates, product removals, seller product and ticket mutations).
 - Consistent list views: filter, sort, pagination, bulk actions where applicable.
 - Detail views with related records (e.g. order → buyer, seller, invoice, transactions).
+- Seller never sees another seller’s records.
 
 ---
 
 ## 4. Analytics
 
 **Purpose:** High-level and drill-down metrics for business decisions.
+
+**Staff vs seller**
+
+- **Staff / superuser:** platform-wide metrics (all sellers).
+- **Seller dashboard:** the same kinds of metrics **scoped to that seller only** (their orders, revenue, products, and buyer tickets). No other seller’s data.
 
 **Metrics & views**
 
@@ -167,12 +175,25 @@ A centralized admin dashboard for managing an e-commerce marketplace. The platfo
 - Products listed (linked)
 - Payout / transaction summary (linked)
 
-**Actions**
+**Actions (staff)**
 
 - CRUD seller records
-- Enable / disable seller account
+- Enable / disable seller account (disabled sellers cannot sign in to the seller dashboard)
 - Edit delivery methods and support settings
 - View orders and tickets involving this seller
+- Provision or reset seller dashboard login
+
+### 9.1 Seller dashboard
+
+Sellers sign in to a **separate dashboard shell** (same product, seller-scoped session). They are not staff and do not receive admin permission grants.
+
+| Module | Seller can |
+|--------|------------|
+| **Analytics** | View metrics for their shop only (revenue, order volume, AOV, status breakdown, top products). Date range and comparison as in §4, scoped. |
+| **Tickets from buyers** | List, open, reply, and update status on **buyer ↔ seller** tickets where they are the seller. No site-support tickets and no other sellers’ tickets. |
+| **Manage products** | CRUD their own catalog: images, variants, stock, publish / unpublish. Cannot change seller association or edit another seller’s products. |
+
+**Seller dashboard does not include:** marketing, CRM, all-platform orders/invoices/transactions, buyers/sellers directories, reviews/Q&A/report moderation, blog, or admin management.
 
 ---
 
@@ -226,7 +247,7 @@ A centralized admin dashboard for managing an e-commerce marketplace. The platfo
 
 ## 12. Website Products
 
-**Purpose:** Catalog management for items sold on the site.
+**Purpose:** Catalog management for items sold on the site. Staff can manage any product. **Sellers manage only their own products** from the seller dashboard.
 
 **Fields**
 
@@ -381,15 +402,14 @@ A centralized admin dashboard for managing an e-commerce marketplace. The platfo
 
 - Ticket ID, subject, description, priority, status (open, in progress, waiting, resolved, closed)
 - Type (site / buyer-seller)
-- Requester (buyer), assignee (admin or seller context)
+- Requester (buyer), assignee (admin); seller is the vendor party on buyer–seller tickets
 - Related order / product (optional)
 - Message thread with timestamps
 
 **Actions**
 
-- List and filter by type, status, buyer, seller
-- Assign to admin
-- Reply and change status
+- Staff: list and filter by type, status, buyer, seller; assign to admin; reply and change status
+- **Seller dashboard:** list/reply/status only on buyer–seller tickets for their shop
 - Superuser: view **all** tickets across buyers and sellers
 
 ---
@@ -415,14 +435,14 @@ The superuser role must:
 | **Availability** | Target 99.5% uptime (production) |
 | **Data** | Soft-delete for buyers/sellers/products where legally required; backup strategy TBD |
 | **Localization** | UI language TBD; currency and date formatting configurable |
-| **Accessibility** | WCAG 2.1 AA target for admin UI |
+| **Accessibility** | WCAG 2.1 AA target for staff and seller UI |
 
 ---
 
 ## 21. Suggested Module Map (Navigation)
 
 ```
-Dashboard (overview / analytics snapshot)
+Staff dashboard
 ├── Analytics
 ├── Marketing
 ├── CRM
@@ -444,6 +464,11 @@ Dashboard (overview / analytics snapshot)
 │   └── Tickets
 └── Settings
     └── Admins (superuser)
+
+Seller dashboard (scoped to that seller)
+├── Analytics
+├── Tickets (from buyers)
+└── Products
 ```
 
 ---
@@ -451,7 +476,6 @@ Dashboard (overview / analytics snapshot)
 ## 22. Open Questions
 
 - [ ] Multi-currency and multi-language from day one?
-- [ ] Seller self-service portal in phase 1 or later?
 - [ ] Payment provider(s) and webhook handling scope?
 - [ ] Email/SMS notifications for order and ticket events?
 - [ ] Data retention policy for canceled orders and deleted users?
@@ -462,6 +486,6 @@ Dashboard (overview / analytics snapshot)
 
 | Phase | Scope |
 |-------|--------|
-| **MVP** | Auth, admins/permissions, orders, buyers, sellers, products, tickets (site support) |
-| **Phase 2** | Invoices, transactions, reviews, Q&A, product reports, buyer-seller tickets |
-| **Phase 3** | Analytics, marketing, CRM, blog, advanced exports and audit UI |
+| **MVP** | Staff auth, admins/permissions, orders, buyers, sellers, products; **seller login + seller product management**; tickets (site support) |
+| **Phase 2** | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets **including seller dashboard tickets** |
+| **Phase 3** | Analytics (staff platform-wide **and** seller-scoped), marketing, CRM, blog, advanced exports and audit UI |

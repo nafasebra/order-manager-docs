@@ -1,6 +1,6 @@
 # System Design
 
-Architecture for the e-commerce **site management dashboard**. Product constraints: [requirements.md](./requirements.md). Decisions: [adr.md](./adr.md). Model: [entities.md](./entities.md). Flows: [data-flow.md](./data-flow.md). Behavior: [use-case.md](./use-case.md), [edge-case.md](./edge-case.md).
+Architecture for the e-commerce **staff dashboard** and **seller dashboard**. Product constraints: [requirements.md](./requirements.md). Decisions: [adr.md](./adr.md). Model: [entities.md](./entities.md). Flows: [data-flow.md](./data-flow.md). Behavior: [use-case.md](./use-case.md), [edge-case.md](./edge-case.md).
 
 This document describes a **modular monolith** that can share a database with a future/existing storefront or sit behind an ingest API.
 
@@ -10,7 +10,8 @@ This document describes a **modular monolith** that can share a database with a 
 
 **Goals**
 
-- One authenticated admin surface for marketplace operations.
+- One authenticated **staff** surface for marketplace operations.
+- A **seller dashboard** so each vendor can view shop analytics, answer tickets from buyers, and manage their products.
 - Role-based module access; Superuser sees everything including admin management and all tickets.
 - Predictable list performance (pagination, ~2s typical).
 - Auditable sensitive mutations.
@@ -18,10 +19,10 @@ This document describes a **modular monolith** that can share a database with a 
 
 **Non-goals (now)**
 
-- Buyer-facing shop UI.
-- Seller self-service portal.
+- Buyer-facing shop UI (buyers are not dashboard users).
 - Card processing / PCI interior of a payment gateway.
 - Multi-currency as a first-class ledger (until §22 is decided).
+- Seller access to staff modules (marketing, CRM, all-platform orders, invoices, other sellers, moderation, blog, admins).
 
 ---
 
@@ -35,7 +36,7 @@ This document describes a **modular monolith** that can share a database with a 
 | Auditability | Append-only audit log |
 | Performance | Paginated APIs, indexes on filter columns, later materialized analytics |
 | Availability | 99.5% target: stateless app instances, managed Postgres, queued workers |
-| Accessibility | WCAG 2.1 AA on admin UI |
+| Accessibility | WCAG 2.1 AA on staff and seller UI |
 | Operability | Structured logs, request ids, job failure visibility |
 
 ---
@@ -46,11 +47,12 @@ This document describes a **modular monolith** that can share a database with a 
 flowchart TB
   subgraph Clients
     BROWSER[Staff browser desktop / tablet]
+    SELLERUI[Seller browser desktop / tablet]
   end
 
   subgraph App["Dashboard application - modular monolith"]
-    UI[UI: App Router pages + module layouts]
-    MW[Session + CSRF + permission middleware]
+    UI[UI: staff shell + seller shell]
+    MW[Session + CSRF + permission / seller-scope middleware]
     APP[Application services / use-case handlers]
     DOM[Domain: orders catalog tickets identity billing]
     INF[Repos, object store, queue, mail dispatcher]
@@ -68,6 +70,7 @@ flowchart TB
   end
 
   BROWSER --> UI
+  SELLERUI --> UI
   UI --> MW --> APP --> DOM --> INF
   INF --> PG
   INF --> OBJ
@@ -86,7 +89,7 @@ Matches navigation in requirements §21.
 
 | Module | Owns | Depends on (read) |
 |--------|------|-------------------|
-| **Identity** | AdminUser, sessions, grants, RoleTemplate | — |
+| **Identity** | AdminUser, sessions, grants, RoleTemplate, Seller login | — |
 | **Audit** | AuditLog | called by all |
 | **People** | Buyer, Address, Seller, delivery methods | Orders, Tickets (links) |
 | **Catalog** | Product, images, variants, stock | Seller |
@@ -103,10 +106,17 @@ Matches navigation in requirements §21.
 
 Each module exposes:
 
-- **Queries** for list/detail (permission-filtered).
+- **Queries** for list/detail (permission-filtered; seller queries also `seller_id`-scoped).
 - **Commands** for mutations (validate → persist → audit → domain event).
 
-UI routes 1:1 with modules; forbidden modules return 403 and are omitted from the shell nav.
+Two UI shells:
+
+| Shell | Routes (example) | Modules |
+|-------|------------------|---------|
+| Staff | `/` … `/settings/admins` | Full map from requirements §21, filtered by grants |
+| Seller | `/seller/analytics`, `/seller/tickets`, `/seller/products` | Fixed: analytics, tickets from buyers, products |
+
+Forbidden staff modules return 403 for sellers. Seller routes return 403 for staff unless a future “impersonate” tool is added (not in scope).
 
 ---
 
@@ -115,19 +125,27 @@ UI routes 1:1 with modules; forbidden modules return 403 and are omitted from th
 ```mermaid
 flowchart TD
   R[Request] --> S{Valid session?}
-  S -->|No| L[Login]
-  S -->|Yes| I[Load AdminUser + grants]
+  S -->|No| L[Login staff or seller]
+  S -->|Yes| I[Load actor]
   I --> T{Idle timeout?}
   T -->|Yes| X[Invalidate]
-  T -->|No| P{is_superuser?}
-  P -->|Yes| A[Allow route]
-  P -->|No| G{Grant has area + action?}
+  T -->|No| Y{actor_type}
+  Y -->|staff superuser| A[Allow staff route]
+  Y -->|staff admin| G{Grant has area + action?}
   G -->|No| F[403]
   G -->|Yes| A
-  A --> H[Handler + scoped query]
+  Y -->|seller| E{Seller enabled and seller route?}
+  E -->|No| F
+  E -->|Yes| H[Handler + seller_id scope]
+  A --> HS[Handler + grant-scoped query]
 ```
 
-**Session:** server-side session id in HTTP-only cookie. Store `admin_id`, `issued_at`, `last_seen_at`. Idle timeout from last_seen. Regeneration on privilege change is optional; **must** re-read grants from DB every request (ADR-002).
+**Session:** server-side session id in HTTP-only cookie.
+
+- Staff: `actor_type=staff`, `admin_id`, `issued_at`, `last_seen_at`. Re-read grants from DB every request (ADR-002).
+- Seller: `actor_type=seller`, `seller_id`. Re-read Seller.status every request; `disabled` invalidates access (ADR-017).
+
+Idle timeout from last_seen. Do not put both admin_id and seller_id on one session.
 
 **Permission matrix (actions):**
 
@@ -145,6 +163,14 @@ flowchart TD
 | blog | view, edit |
 | tickets | view, respond |
 | admin_management | manage (superuser only in practice) |
+
+**Seller (fixed, not grant-customizable):**
+
+| Area | Actions | Scope |
+|------|---------|--------|
+| analytics | view | own `seller_id` only |
+| tickets | view, respond | `buyer_seller` + own `seller_id` |
+| products | view, edit | own `seller_id` only |
 
 **Last superuser guard:** Identity command `Demote` / `Suspend` counts `is_superuser && status=active`.
 
@@ -240,14 +266,17 @@ REST under `/api/v1`, session cookie auth. All lists: `page`, `pageSize`, `sort`
 
 | Method | Path | Permission |
 |--------|------|------------|
-| POST | `/auth/login` `/auth/logout` | public / session |
-| GET | `/me` | authenticated |
-| GET/PATCH | `/orders` `/orders/:id` | orders.view / edit |
+| POST | `/auth/login` `/auth/logout` | staff session |
+| POST | `/auth/seller/login` `/auth/seller/logout` | seller session |
+| GET | `/me` | authenticated (staff or seller; payload differs) |
+| GET/PATCH | `/orders` `/orders/:id` | orders.view / edit (**staff only**) |
 | POST | `/orders/:id/status` | orders.update_status |
 | POST | `/orders/:id/cancel` | orders.update_status |
-| CRUD | `/buyers` `/sellers` `/products` | respective edit |
-| GET/POST | `/tickets` `/tickets/:id/messages` | tickets |
+| CRUD | `/buyers` `/sellers` | staff people permissions |
+| CRUD | `/products` | staff products **or** seller (own rows only) |
+| GET/POST | `/tickets` `/tickets/:id/messages` | staff tickets **or** seller (`buyer_seller` + own shop) |
 | CRUD | `/admins` `/admins/:id/grants` | superuser |
+| GET | `/seller/analytics` | seller session |
 | GET | `/audit` | superuser or audit.view (phase 3 UI) |
 
 Phase 2 adds `/invoices`, `/transactions`, `/transactions/:id/refund`, `/reviews`, `/questions`, `/product-reports`.
@@ -258,13 +287,16 @@ Phase 2 adds `/invoices`, `/transactions`, `/transactions/:id/refund`, `/reviews
 
 ## 9. UI architecture
 
-- **Shell:** sidebar from module map, filtered by grants; header with user menu and (stretch) global search.
+- **Shells:** staff sidebar from the staff module map, filtered by grants; **seller sidebar** is fixed (Analytics, Tickets, Products). Header with user menu. Stretch: global search (staff) / scoped search (seller).
 - **List pattern:** filters, sort, pagination, empty state, bulk only when a command exists.
 - **Detail pattern:** header (id, status chips), tabs or sections for related records (order → buyer, seller(s), invoice, transactions, tickets).
 - **Command pattern:** destructive/financial actions in a confirm dialog that maps to the API confirm flag.
 - **Responsive:** CSS layout: sidebar collapsible on tablet; tables horizontally scroll rather than drop columns silently.
 
-Route groups example: `/`, `/analytics`, `/orders`, `/orders/[id]`, `/buyers`, `/sellers`, `/products`, `/tickets`, `/settings/admins`.
+Route groups example:
+
+- Staff: `/`, `/analytics`, `/orders`, `/orders/[id]`, `/buyers`, `/sellers`, `/products`, `/tickets`, `/settings/admins`
+- Seller: `/seller/analytics`, `/seller/tickets`, `/seller/tickets/[id]`, `/seller/products`, `/seller/products/[id]`
 
 ---
 
@@ -292,8 +324,8 @@ Do **not** run dashboard widgets as heavy `GROUP BY` on live `orders` once volum
 
 1. MVP: skip dedicated analytics module; overview can show cheap counts (`orders by status` with indexes) if needed for smoke.
 2. Phase 3: nightly or streaming **fact_order**, **fact_payment** tables.
-3. Widgets read facts with date-range parameters; comparison = second query on shifted range of **equal length**.
-4. Export = enqueue job that reads the same facts.
+3. Widgets read facts with date-range parameters; comparison = second query on shifted range of **equal length**. Seller widgets add `seller_id = session`.
+4. Export = enqueue job that reads the same facts (staff; seller export optional).
 
 Inclusion rules live in code next to the fact builder (canceled-but-paid, refunds, currency buckets).
 
@@ -305,8 +337,9 @@ Inclusion rules live in code next to the fact builder (canceled-but-paid, refund
 |--------|---------|
 | Session theft | HTTP-only Secure cookie, short idle, HTTPS |
 | CSRF | SameSite + CSRF token on mutations |
-| IDOR | Permission + ownership/scope on every query (tickets) |
-| Privilege escalation | Superuser-only admin_management; last-superuser invariant |
+| IDOR | Permission + ownership/scope on every query (tickets, products, seller_id) |
+| Privilege escalation | Superuser-only admin_management; last-superuser invariant; seller cannot reach staff routes |
+| Seller data leak | Session-injected `seller_id`; tests for cross-seller IDs |
 | XSS | Framework escaping; sanitize blog/product rich text on write |
 | Upload abuse | Type/size limits; private buckets for evidence |
 | Refund fraud | Role gate + confirm + audit + balance check |
@@ -347,15 +380,15 @@ App instances are stateless. Sessions in Postgres or Redis. Backups: Postgres PI
 
 ## 15. MVP build sequence
 
-1. **Identity:** login, session timeout, AdminUser, superuser bootstrap, grants, last-superuser rule, audit writer.
-2. **Shell:** module nav, 403, list/detail layout primitives.
-3. **People:** buyers (addresses), sellers (enable/disable, delivery methods).
-4. **Catalog:** products, images, variants, stock movements, publish rules.
-5. **Commerce:** order list/detail, status machine, cancel+reason, snapshots, optimistic lock.
+1. **Identity:** staff login, seller login, session timeout, AdminUser, superuser bootstrap, grants, last-superuser rule, seller enable/disable vs session, audit writer.
+2. **Shells:** staff module nav and **seller shell** (analytics placeholder, tickets placeholder, products).
+3. **People:** buyers (addresses), sellers (enable/disable, delivery methods, provision seller login).
+4. **Catalog:** products, images, variants, stock movements, publish rules; **seller manages own products**.
+5. **Commerce:** order list/detail, status machine, cancel+reason, snapshots, optimistic lock (**staff**).
 6. **Support:** site tickets, assign, thread, superuser unscoped list.
-7. **Hardening:** pagination everywhere, indexes, confirm dialogs, WCAG pass on core flows.
+7. **Hardening:** pagination everywhere, indexes, confirm dialogs, WCAG pass on core flows, seller isolation tests.
 
-Phase 2/3 attach Billing, Trust, CRM, Marketing, Content, Analytics without changing order snapshot rules.
+Phase 2/3 attach Billing, Trust, CRM, Marketing, Content, Analytics (staff + seller), and buyer–seller tickets on both shells without changing order snapshot rules.
 
 ---
 
@@ -366,7 +399,6 @@ Resolve before the named phase ships:
 | Question | Blocks | Interim design |
 |----------|--------|----------------|
 | Multi-currency / i18n | Analytics totals, invoice money | Single currency + UTC + message catalog |
-| Seller portal | Buyer–seller ticket replies | Staff proxy messages |
 | Payment provider | Transaction webhooks | Ledger + `external_id` uniqueness |
 | Email/SMS | Buyer/seller notify | Domain events, no-op dispatcher |
 | Data retention | Anonymize vs delete | Anonymize when orders exist |

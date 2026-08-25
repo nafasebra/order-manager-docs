@@ -21,6 +21,10 @@ Legend: **Block** = refuse the action · **Allow + audit** = permit with reason 
 | EC-AUTH-07 | Concurrent permission edits on the same admin | Last-write-wins is unsafe. Use optimistic locking (version) or reject stale updates. Audit both attempts. |
 | EC-AUTH-08 | Empty custom permission set | Allow (view-only login to an empty shell) **or** require at least one area — pick one in implementation; empty shell is confusing, prefer requiring a template. |
 | EC-AUTH-09 | Role template later changes | Decide: existing admins keep a snapshot vs follow the template. Snapshot is safer; document in ADR. |
+| EC-AUTH-10 | Seller signs in with staff login (or staff with seller login) | **Block.** Separate actor types; generic failure. |
+| EC-AUTH-11 | Disabled seller still has a valid session | Next request **Block** (same as revoke). Invalidate session on disable. |
+| EC-AUTH-12 | Seller opens a staff URL (`/buyers`, `/admins`, another seller’s product) | **403/404.** No data leakage. |
+| EC-AUTH-13 | Seller login when staff never provisioned credentials | **Block.** Staff must provision dashboard login. |
 
 ---
 
@@ -68,13 +72,16 @@ Legend: **Block** = refuse the action · **Allow + audit** = permit with reason 
 
 | ID | Scenario | Expected handling |
 |----|----------|-------------------|
-| EC-SLR-01 | Disable seller with `published` products | Auto-unpublish or leave published but not purchasable — **must pick one**. Recommend unpublish + notify (notification TBD). |
-| EC-SLR-02 | Disable seller with open orders | **Allow.** Open orders stay in the pipeline; new orders blocked. |
-| EC-SLR-03 | Delete seller with historical orders | Soft-delete. Orders keep seller snapshot / FK to tombstone. |
+| EC-SLR-01 | Disable seller with `published` products | Auto-unpublish or leave published but not purchasable — **must pick one**. Recommend unpublish + notify (notification TBD). **Seller dashboard login is blocked.** |
+| EC-SLR-02 | Disable seller with open orders | **Allow.** Open orders stay in the pipeline for **staff**; new orders blocked. Seller cannot sign in. |
+| EC-SLR-03 | Delete seller with historical orders | Soft-delete. Orders keep seller snapshot / FK to tombstone. Seller login revoked. |
 | EC-SLR-04 | No delivery methods configured | **Block** publish of that seller’s products or warn on seller save. |
 | EC-SLR-05 | Map location invalid / empty free-text address | Allow incomplete workplace address in draft; require it before “enabled.” |
-| EC-SLR-06 | Payout summary while seller has failed payouts | Show failed payouts in transaction list; do not hide negative or failed rows. |
-| EC-SLR-07 | Re-enable seller | Does not auto-republish products. Staff republishes explicitly. |
+| EC-SLR-06 | Payout summary while seller has failed payouts | Show failed payouts in **staff** transaction list; do not hide negative or failed rows. Seller dashboard does not include payouts. |
+| EC-SLR-07 | Re-enable seller | Does not auto-republish products. Staff or seller republishes explicitly. Dashboard login works again if credentials still exist. |
+| EC-SLR-08 | Seller creates/edits a product for another `seller_id` | **Block.** Create always stamps session `seller_id`. |
+| EC-SLR-09 | Seller analytics query without seller scope | API **must** inject `seller_id` from session; ignore client-supplied seller filters that widen the set. |
+| EC-SLR-10 | Two people share one seller login | Allowed until multi-user seller accounts exist. Audit uses the seller actor, not a personal staff id. |
 
 ---
 
@@ -137,7 +144,7 @@ Legend: **Block** = refuse the action · **Allow + audit** = permit with reason 
 | EC-REV-01 | Review from a buyer who never ordered the product | Policy TBD. Default **flag** for moderator; do not auto-approve. |
 | EC-REV-02 | Duplicate review same buyer+product | **Block** second approved review; allow update of existing pending. |
 | EC-REV-03 | Review on deleted/archived product | Keep for moderation history; hide on storefront. |
-| EC-REV-04 | Reply policy (site vs seller) | Until policy is set, only **admin** replies. Seller replies wait for portal or explicit “post as seller” staff action. |
+| EC-REV-04 | Reply policy (site vs seller) | Staff may reply as admin. **Sellers do not moderate reviews** on their dashboard (reviews are staff-only). |
 | EC-QA-01 | Publish answer while question is `hidden`/`pending` | **Block** storefront publish; staff may still draft the answer. |
 | EC-QA-02 | Multiple answers | Allow; mark one as official admin answer. |
 | EC-QA-03 | Asker buyer later anonymized | Question remains; asker display name becomes anonymized. |
@@ -186,8 +193,8 @@ Legend: **Block** = refuse the action · **Allow + audit** = permit with reason 
 | EC-TKT-01 | Site ticket vs buyer–seller ticket for the same order | **Allow both.** Filters and type are mandatory so they do not mix in default views. |
 | EC-TKT-02 | Assign to suspended or non-existent admin | **Block.** |
 | EC-TKT-03 | Reply on `closed` ticket | **Block** unless reopen is an explicit action. |
-| EC-TKT-04 | Buyer–seller ticket when seller is disabled | **Allow** staff to continue the thread (phase 2). Seller may be unable to respond until a portal exists. |
-| EC-TKT-05 | Non-superuser lists tickets they must not see | Query-level filter, not only UI hide. Superuser sees all (UC-TKT-03). |
+| EC-TKT-04 | Buyer–seller ticket when seller is disabled | **Allow** staff to continue the thread. Seller cannot sign in to reply. |
+| EC-TKT-05 | Non-superuser lists tickets they must not see | Query-level filter, not only UI hide. Superuser sees all (UC-TKT-03). **Seller lists only `buyer_seller` + own `seller_id`.** |
 | EC-TKT-06 | Related order/product deleted | Keep ticket; show snapshot / “record unavailable.” |
 | EC-TKT-07 | Requester anonymized | Thread remains; PII in old messages is a **data-retention** question (§22). |
 | EC-TKT-08 | Priority or type changed after work started | **Allow + audit.** |
@@ -235,4 +242,5 @@ Handle these **before** phase-2 finance and UGC:
 4. EC-BYR-01, 02, 06 (identity uniqueness and delete policy)
 5. EC-SLR-01, 02 (disable vs catalog vs open orders)
 6. EC-PRD-03, 04, 05 (stock integrity and catalog vs history)
-7. EC-TKT-05 (authorization on ticket queries)
+7. EC-TKT-05 (authorization on ticket queries, including seller-scoped lists)
+8. EC-AUTH-10–13 and EC-SLR-08/09 (seller dashboard isolation)

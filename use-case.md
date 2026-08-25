@@ -1,6 +1,6 @@
 # Use Cases
 
-Derived from [requirements.md](./requirements.md). Actors, modules, and constraints follow that document. Buyer and seller are **managed subjects**, not dashboard operators, unless a later phase adds self-service portals.
+Derived from [requirements.md](./requirements.md). Actors, modules, and constraints follow that document. **Buyers** are managed subjects (not dashboard users). **Sellers have a seller dashboard** limited to analytics, tickets from buyers, and product management.
 
 Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data-flow.md](./data-flow.md)
 
@@ -10,14 +10,14 @@ Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data
 
 | Actor | Dashboard user? | Notes |
 |-------|-----------------|--------|
-| **Superuser** | Yes | Unrestricted access to every module, including admin management and all tickets. |
-| **Admin** | Yes | Access limited to assigned permission areas (requirements §15). |
-| **Support** | Yes (as an admin with support-scoped permissions, or a dedicated support role) | Handles site-support and/or buyer–seller tickets. |
-| **Buyer** | No | End customer. Created/updated via dashboard (and eventually the storefront). |
-| **Seller** | No (phase 1) | Marketplace vendor. Managed from the dashboard. Self-service is out of scope for now. |
+| **Superuser** | Yes (staff shell) | Unrestricted access to every staff module, including admin management and all tickets. |
+| **Admin** | Yes (staff shell) | Access limited to assigned permission areas (requirements §15). |
+| **Support** | Yes (staff shell; admin with support-scoped permissions, or a dedicated support role) | Handles site-support and/or buyer–seller tickets. |
+| **Buyer** | No | End customer. Created/updated via staff dashboard (and eventually the storefront). |
+| **Seller** | Yes (seller shell) | Marketplace vendor. Dashboard modules: **analytics**, **tickets from buyers**, **manage products**. Also a record managed by staff. |
 | **System** | — | Background jobs, webhooks, scheduled publishes, session expiry. |
 
-In the flows below, **Staff** means Superuser or an Admin whose permissions allow the action.
+In the flows below, **Staff** means Superuser or an Admin whose permissions allow the action. **Seller** means a vendor signed into the seller dashboard; every query is scoped to that seller’s `seller_id`.
 
 ---
 
@@ -50,6 +50,13 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 | UC-SLR-01 | Manage seller records | Staff | Sellers |
 | UC-SLR-02 | Enable or disable seller | Staff | Sellers |
 | UC-SLR-03 | Configure seller delivery and support | Staff | Sellers |
+| UC-SEL-AUTH-01 | Sign in to seller dashboard | Seller | Seller auth |
+| UC-SEL-AN-01 | View shop analytics | Seller | Seller analytics |
+| UC-SEL-TKT-01 | Browse tickets from buyers | Seller | Seller tickets |
+| UC-SEL-TKT-02 | Reply to a buyer ticket | Seller | Seller tickets |
+| UC-SEL-PRD-01 | Manage own products | Seller | Seller products |
+| UC-SEL-PRD-02 | Manage own images, variants, and stock | Seller | Seller products |
+| UC-SEL-PRD-03 | Publish or unpublish own product | Seller | Seller products |
 | UC-INV-01 | Browse invoices | Staff | Invoices |
 | UC-INV-02 | View and download invoice | Staff | Invoices |
 | UC-INV-03 | Create manual invoice | Staff | Invoices |
@@ -80,21 +87,22 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 ### UC-AUTH-01 — Sign in
 
 **Actor:** Staff  
-**Goal:** Access the dashboard with an authenticated session.  
+**Goal:** Access the **staff** dashboard with an authenticated session.  
 **Preconditions:** Account exists and status is `active`. HTTPS in production.
 
 **Main flow**
 
-1. Staff opens the dashboard and submits email/username and password.
-2. System authenticates credentials.
-3. System creates a session and loads the permission set for the account.
-4. System redirects to the overview dashboard (or the last allowed page).
+1. Staff opens the staff login and submits email/username and password.
+2. System authenticates credentials as an AdminUser (not a seller login).
+3. System creates a staff session and loads the permission set for the account.
+4. System redirects to the staff overview (or the last allowed page).
 
 **Alternate / exception**
 
 - Invalid credentials → generic failure; no account enumeration.
 - Account `suspended` → access denied.
 - Superuser → full module map; Admin → only permitted modules in navigation.
+- Seller credentials on the staff login → access denied (sellers use UC-SEL-AUTH-01).
 
 **Postcondition:** Authenticated session; subsequent requests are permission-checked.
 
@@ -139,13 +147,15 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 **Actor:** Staff with audit permission (Superuser always).  
 **Goal:** Inspect who changed sensitive records.
 
-**Covered actions (minimum):** admin create/edit/suspend/permission change, order status updates, product removals, invoice void/amend, refunds.
+**Covered actions (minimum):** admin create/edit/suspend/permission change, order status updates, product removals, invoice void/amend, refunds, seller product edits, seller ticket replies.
 
 **Main flow:** Staff opens audit for a record or a global audit view → filter by actor, action, entity, time → inspect before/after or reason.
 
 ---
 
 ## 4. Analytics
+
+Staff analytics are platform-wide (UC-AN-*). Seller shop analytics are UC-SEL-AN-01.
 
 ### UC-AN-01 — View dashboard overview
 
@@ -345,7 +355,7 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 **Actor:** Staff with Sellers edit.  
 **Goal:** Take a vendor on or off the marketplace.
 
-**Postcondition:** Disabled seller cannot receive new published listings / new orders (exact storefront behavior is out of this dashboard’s UI scope). Open orders remain visible for fulfillment. Action is audited.
+**Postcondition:** Disabled seller cannot receive new published listings / new orders (exact storefront behavior is out of this dashboard’s UI scope). **Seller dashboard login is blocked.** Open orders remain visible to staff for fulfillment. Action is audited.
 
 ---
 
@@ -355,6 +365,85 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 **Goal:** Set delivery methods (standard, express, pickup, …) and buyer-support channel settings.
 
 **Related:** Staff can open orders and tickets that involve this seller from the seller profile.
+
+---
+
+## 9.1 Seller dashboard
+
+Seller sessions never load the staff shell. Navigation is only Analytics, Tickets from buyers, and Products.
+
+### UC-SEL-AUTH-01 — Sign in to seller dashboard
+
+**Actor:** Seller  
+**Goal:** Access the seller dashboard.  
+**Preconditions:** Seller record exists, status is `enabled`, dashboard login is provisioned.
+
+**Main flow**
+
+1. Seller opens seller login and submits credentials.
+2. System authenticates against the seller account (not AdminUser).
+3. System creates a session bound to `seller_id` and `actor_type = seller`.
+4. System redirects to seller analytics (or last allowed seller page).
+
+**Exception:** `disabled` or no login → access denied. Staff credentials on seller login → denied.
+
+---
+
+### UC-SEL-AN-01 — View shop analytics
+
+**Actor:** Seller  
+**Goal:** See revenue, order volume, AOV, status breakdown, and top products **for this seller only**.
+
+**Main flow:** Seller picks a date range (and optional comparison) → system aggregates only orders/line items/payments for `seller_id`.
+
+**Exception:** Platform-wide or other-seller widgets are never returned. Conversion funnel is omitted unless storefront events exist **and** are attributable to this seller.
+
+---
+
+### UC-SEL-TKT-01 — Browse tickets from buyers
+
+**Actor:** Seller  
+**Goal:** Work buyer ↔ seller tickets for this shop.
+
+**Main flow:** Seller opens Tickets → list is `type = buyer_seller` AND `seller_id = session`. Filter by status, buyer, related order/product.
+
+**Exception:** Site-support tickets and other sellers’ tickets are omitted (same as no match). Direct ID access → 404/403 with no leakage.
+
+---
+
+### UC-SEL-TKT-02 — Reply to a buyer ticket
+
+**Actor:** Seller  
+**Goal:** Reply on the thread and/or change status (`open`, `in progress`, `waiting`, `resolved`, `closed`).
+
+**Main flow:** Seller opens an in-scope ticket → replies (`author_type = seller`) and/or updates status.
+
+**Exception:** Closed tickets read-only unless reopen is allowed. Cannot assign tickets to staff from this shell (staff assignment remains a staff action).
+
+---
+
+### UC-SEL-PRD-01 — Manage own products
+
+**Actor:** Seller  
+**Goal:** CRUD products where `seller_id = session`. Create always sets seller to self.
+
+**Exception:** Cannot change seller association. Cannot open or mutate another seller’s product (403/404).
+
+---
+
+### UC-SEL-PRD-02 — Manage own images, variants, and stock
+
+**Actor:** Seller  
+**Goal:** Same as UC-PRD-02, limited to own products. Stock movements record `actor_seller_id`.
+
+---
+
+### UC-SEL-PRD-03 — Publish or unpublish own product
+
+**Actor:** Seller  
+**Goal:** Same publish rules as UC-PRD-03 on own products.
+
+**Exception:** If staff archived or removed the product after a report, seller cannot unilaterally republish without staff policy (default **Block**).
 
 ---
 
@@ -425,7 +514,7 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 
 ### UC-PRD-01 — Manage product catalog
 
-**Actor:** Staff with Products view/edit.  
+**Actor:** Staff with Products view/edit. Sellers use UC-SEL-PRD-01 for their own catalog.  
 **Goal:** CRUD products: name, technical description, seller, price / sale price, technical specs, status (`draft`, `published`, `out of stock`, `archived`).
 
 ---
@@ -558,7 +647,7 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 2. Staff assigns, replies, and/or updates status.
 3. Thread stores messages with timestamps.
 
-**Exception:** Closed tickets are read-only unless reopened by policy. Buyer–seller tickets may show seller context even though the seller is not a dashboard user in phase 1.
+**Exception:** Closed tickets are read-only unless reopened by policy. Buyer–seller tickets are also worked by the seller on the seller dashboard (UC-SEL-TKT-*). Staff may still view and reply.
 
 ---
 
@@ -571,7 +660,7 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 
 ## 16. Cross-cutting rules for every use case
 
-1. **Authorization:** Every page and mutating API checks permissions; Superuser bypasses restriction, not audit.
+1. **Authorization:** Every page and mutating API checks permissions; Superuser bypasses restriction, not audit. Seller sessions are limited to the three seller modules and **must** filter by `seller_id`.
 2. **Lists:** Filter, sort, pagination; bulk actions only where specified later.
 3. **Detail pages:** Surface related records (order ↔ buyer, seller, invoice, transactions).
 4. **Audit:** Sensitive mutations write an audit record.
@@ -584,6 +673,6 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 
 | Phase | Use cases in scope |
 |-------|-------------------|
-| **MVP** | UC-AUTH-*, UC-ADM-*, UC-ORD-*, UC-BYR-*, UC-SLR-*, UC-PRD-*, UC-TKT-01/02 (site support), Superuser UC-TKT-03 for site tickets |
-| **Phase 2** | UC-INV-*, UC-TXN-*, UC-REV-*, UC-QA-*, UC-RPT-*, UC-TKT-* including buyer–seller |
-| **Phase 3** | UC-AN-*, UC-MKT-*, UC-CRM-*, UC-BLG-*, UC-GLB-01, advanced export and audit UI (UC-GLB-02, UC-AN-03) |
+| **MVP** | UC-AUTH-*, UC-ADM-*, UC-ORD-*, UC-BYR-*, UC-SLR-*, UC-PRD-*, UC-SEL-AUTH-01, UC-SEL-PRD-*, UC-TKT-01/02 (site support), Superuser UC-TKT-03 for site tickets |
+| **Phase 2** | UC-INV-*, UC-TXN-*, UC-REV-*, UC-QA-*, UC-RPT-*, UC-TKT-* including buyer–seller, UC-SEL-TKT-* |
+| **Phase 3** | UC-AN-*, UC-SEL-AN-01, UC-MKT-*, UC-CRM-*, UC-BLG-*, UC-GLB-01, advanced export and audit UI (UC-GLB-02, UC-AN-03) |

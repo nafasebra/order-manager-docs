@@ -6,16 +6,21 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 ---
 
-## ADR-001 — Admin-only dashboard; buyers and sellers are managed subjects
+## ADR-001 — Two dashboards: staff (full platform) and seller (scoped shop)
 
 **Status:** Accepted  
-**Date:** 2026-08-24
+**Date:** 2026-08-25
 
-**Context:** The product is a centralized **admin** dashboard. Public shop UI and seller self-service are out of scope for now. Buyers and sellers still appear as records.
+**Context:** Staff need a centralized admin surface. Sellers need to run their own shop without seeing the rest of the marketplace. Buyers remain storefront-only. Public shop UI is still out of scope.
 
-**Decision:** No buyer or seller login to this application in MVP. Support staff are **AdminUser** accounts with Tickets (and related) permissions, not a separate authentication product. Superuser is an AdminUser with `is_superuser`.
+**Decision:**
 
-**Consequences:** Ticket type `buyer_seller` is moderated by staff until a seller portal exists. CRM “unified profiles” are staff-facing. A future portal can reuse the same Seller/Buyer entities via a different app.
+- **Staff dashboard:** Superuser / Admin / Support as AdminUser accounts with permission grants. Superuser is an AdminUser with `is_superuser`.
+- **Seller dashboard:** each enabled Seller signs in (`actor_type = seller`) and sees only **analytics**, **tickets from buyers**, and **manage products**, all scoped to that `seller_id`.
+- **Buyers** do not log in to this application.
+- Same modular monolith; separate UI shells and session actor types. Seller grants are **fixed** (not customizable like admin areas).
+
+**Consequences:** Buyer–seller tickets are replied to by the seller on their dashboard (phase 2). Product mutations can come from staff or from the owning seller; audit records `actor_type`. Disable seller revokes dashboard access. CRM unified profiles stay staff-facing.
 
 ---
 
@@ -33,7 +38,7 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 - Superuser bypasses permission denies; **audit still applies**.
 - Grants are a set of `{ area, actions }` (see [entities.md](./entities.md)). Role templates are snapshots copied onto the user at assign time (avoids EC-AUTH-09 surprise).
 
-**Consequences:** Nav is a projection of grants. Ticket lists are query-scoped. Changing grants takes effect on the **next** request (reload permissions from DB, not only JWT at login).
+**Consequences:** Nav is a projection of grants (staff) or of the fixed seller module set. Ticket lists are query-scoped. Changing grants takes effect on the **next** request (reload permissions from DB, not only JWT at login). Seller queries ignore client filters that would expand scope beyond session `seller_id`.
 
 ---
 
@@ -101,9 +106,9 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 **Context:** Site support (buyer ↔ platform) vs buyer support (buyer ↔ seller). Superuser sees all.
 
-**Decision:** Single `Ticket` entity with `type`. Phase 1 persists `site` only. Authorization: non-superuser queries **must** filter; UI hiding is insufficient. Seller is a **context FK**, not a dashboard actor in phase 1.
+**Decision:** Single `Ticket` entity with `type`. Phase 1 persists `site` only. Authorization: non-superuser **staff** queries **must** filter; UI hiding is insufficient. **Sellers** query only `buyer_seller` tickets for their `seller_id` (phase 2). Seller is both a **context FK** and a **dashboard actor** for those tickets.
 
-**Consequences:** Phase 2 adds `buyer_seller` without a second ticketing product. Message `author_type` includes seller for future portal ingestion.
+**Consequences:** Phase 2 adds `buyer_seller` without a second ticketing product. Message `author_type` includes `seller` when the vendor replies from the seller dashboard. Staff can still view and reply.
 
 ---
 
@@ -114,9 +119,9 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 **Context:** Global requirement: audit admin changes, order status updates, product removals; invoices void/amend also require audit.
 
-**Decision:** Append-only `AuditLog` with actor, action, entity, reason (when required), before/after. MVP writes logs even if the **audit UI** is phase 3. Logs are not editable from the dashboard.
+**Decision:** Append-only `AuditLog` with actor (`admin` or `seller`), action, entity, reason (when required), before/after. MVP writes logs even if the **audit UI** is phase 3. Logs are not editable from the dashboard.
 
-**Consequences:** Storage growth; retention policy TBD. Refunds, permission changes, suspend, and report-driven removal are in the same log.
+**Consequences:** Storage growth; retention policy TBD. Refunds, permission changes, suspend, report-driven removal, **and seller product/ticket mutations** are in the same log.
 
 ---
 
@@ -140,11 +145,11 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 | Phase | In |
 |-------|-----|
-| MVP | Auth, admins/permissions, orders, buyers, sellers, products, site tickets |
-| Phase 2 | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets |
-| Phase 3 | Analytics, marketing, CRM, blog, advanced exports, audit UI |
+| MVP | Staff auth, admins/permissions, orders, buyers, sellers, products, site tickets; **seller login + seller product management** |
+| Phase 2 | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets **on staff and seller dashboards** |
+| Phase 3 | Analytics (platform-wide **and** seller-scoped), marketing, CRM, blog, advanced exports, audit UI |
 
-**Consequences:** Data model still **reserves** FKs and snapshot fields so phase 2 does not rewrite order history. Do not build marketing/CRM UI in MVP.
+**Consequences:** Data model still **reserves** FKs and snapshot fields so phase 2 does not rewrite order history. Do not build marketing/CRM UI in MVP. Seller analytics waits for phase 3 with staff analytics.
 
 ---
 
@@ -204,7 +209,7 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Admin UI | React + Next.js App Router | Dashboard-centric, SSR/auth cookies, fits a “dash” product |
+| Web UI | React + Next.js App Router | Staff and seller shells, SSR/auth cookies |
 | API | Same app Route Handlers or a dedicated API service | Start modular monolith; split if storefront already owns a backend |
 | DB | PostgreSQL | Strong constraints, JSON snapshots, pagination |
 | Auth | Session cookies (HTTP-only) + server-side session store | Matches NFR session timeout better than long-lived JWT in localStorage |
@@ -239,4 +244,23 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 **Decision:** Component library must support keyboard, labels, and contrast. Destructive actions use confirmations (refund, cancel, delete, suspend). Mobile phone is **not** a primary target.
 
-**Consequences:** Custom charts in analytics (phase 3) need accessible alternatives (tables/export).
+**Consequences:** Custom charts in analytics (phase 3) need accessible alternatives (tables/export). Applies to **staff and seller** shells.
+
+---
+
+## ADR-017 — Seller data isolation by session seller_id
+
+**Status:** Accepted  
+**Date:** 2026-08-25
+
+**Context:** Sellers operate a dashboard with analytics, buyer tickets, and products. A seller must never read or write another vendor’s data.
+
+**Decision:**
+
+- Session stores `actor_type = seller` and `seller_id`. Staff sessions store `actor_type = staff` and `admin_id`.
+- Seller module set is fixed: analytics (view), tickets (view/respond on `buyer_seller`), products (view/edit own).
+- Every seller list/detail/mutation **injects** `seller_id` from the session. Client-supplied ids that do not match return 404/403.
+- New products created by a seller always set `seller_id` from the session.
+- Disable/suspend/delete seller invalidates that seller’s sessions.
+
+**Consequences:** Shared tables (Product, Ticket, fact tables) rely on query filters and tests, not a separate database per seller. Staff still see all rows their grants allow.

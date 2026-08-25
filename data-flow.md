@@ -1,8 +1,8 @@
 # Data Flow
 
-How information moves through the admin dashboard and its neighboring systems. Entity names match [entities.md](./entities.md). Use cases: [use-case.md](./use-case.md).
+How information moves through the **staff dashboard**, the **seller dashboard**, and neighboring systems. Entity names match [entities.md](./entities.md). Use cases: [use-case.md](./use-case.md).
 
-The **public storefront** and **payment gateway** are out of scope as products, but they are sources and sinks of data the dashboard must display and control.
+The **public storefront** and **payment gateway** are out of scope as products, but they are sources and sinks of data the dashboards must display and control.
 
 ---
 
@@ -18,15 +18,18 @@ flowchart LR
   end
 
   subgraph Dashboard
-    UI[Admin UI]
+    SUI[Staff UI]
+    VUI[Seller UI]
     API[Dashboard API]
     DOM[Domain services]
     DB[(Primary database)]
     JOBS[Workers: PDF export schedule]
   end
 
-  Staff((Staff)) --> UI
-  UI --> API
+  Staff((Staff)) --> SUI
+  Seller((Seller)) --> VUI
+  SUI --> API
+  VUI --> API
   API --> DOM
   DOM --> DB
   DOM --> JOBS
@@ -39,16 +42,22 @@ flowchart LR
   DOM -->|refund capture| PG
 ```
 
-**Rule:** the dashboard is the system of record for **staff actions** (status, moderation, permissions, manual invoices). The storefront is typically the system of record for **buyer-placed orders and UGC**, synced into the same database or via APIs.
+**Rule:** the staff dashboard is the system of record for **staff actions** (status, moderation, permissions, manual invoices, seller enable/disable). The seller dashboard is the system of record for **that seller’s product edits** and **buyer–seller ticket replies**. The storefront is typically the system of record for **buyer-placed orders and UGC**, synced into the same database or via APIs.
+
+Seller API calls always run with `actor_type = seller` and a mandatory `seller_id` scope.
 
 ---
 
-## 2. Request path (every staff action)
+## 2. Request path (every dashboard action)
+
+Staff: authenticate AdminUser → check grants (or superuser) → handler.
+
+Seller: authenticate Seller → confirm `status = enabled` → allow only analytics / buyer tickets / own products → **inject `seller_id` from session** into every query and command (ignore widen-the-scope client filters).
 
 ```mermaid
 sequenceDiagram
   participant S as Staff
-  participant UI as Admin UI
+  participant UI as Dashboard UI
   participant API as API
   participant AZ as AuthZ
   participant D as Domain
@@ -141,7 +150,7 @@ Multi-seller: status changes may apply to an **OrderSplit** (per seller) rather 
 
 ```mermaid
 flowchart LR
-  D[Staff edits product] --> V{Valid price images seller?}
+  D[Staff or seller edits product] --> V{Valid price images seller?}
   V -->|No| X[Block publish]
   V -->|Yes| S{Stock}
   S -->|0| O[out_of_stock or block]
@@ -271,7 +280,7 @@ sequenceDiagram
   D->>DB: Audit
 ```
 
-**Disable seller:** dashboard writes `seller.status = disabled` → storefront stops new checkouts → existing orders still flow through order APIs → products unpublished or hidden per EC-SLR-01.
+**Disable seller:** staff dashboard writes `seller.status = disabled` → storefront stops new checkouts → **seller session rejected** → existing orders still flow through staff order APIs → products unpublished or hidden per EC-SLR-01.
 
 ---
 
@@ -287,10 +296,10 @@ flowchart TB
 
   subgraph Buyer-seller support
     B2[Buyer] --> T2[Ticket type buyer_seller]
-    T2 --> SL[Seller context]
-    T2 --> A2[Assignee admin]
-    A2 --> TH2[Thread]
-    SL -.->|phase 1 staff may proxy| TH2
+    T2 --> SL[Seller dashboard]
+    T2 --> A2[Staff may also reply]
+    SL --> TH2[Thread]
+    A2 --> TH2
   end
 
   SU[Superuser] --> T1
@@ -299,9 +308,10 @@ flowchart TB
 
 Data rules:
 
-- List endpoints **filter by permission and assignment**; Superuser query has no seller/buyer scope restriction.
+- Staff list endpoints **filter by permission and assignment**; Superuser query has no seller/buyer scope restriction.
+- **Seller dashboard** lists only `type = buyer_seller` AND `seller_id = session`. Replies persist `author_type = seller`.
 - Related order/product IDs are optional FKs; if the target is later deleted, the ticket keeps the id and the UI shows a broken-link state (EC-TKT-06).
-- Phase 2 introduces `buyer_seller` tickets; MVP only persists `site`.
+- Phase 2 introduces `buyer_seller` tickets (staff + seller dashboard); MVP only persists `site`.
 
 ---
 
@@ -332,7 +342,9 @@ flowchart TB
   OP[(Orders Transactions Products)] --> ETL[Nightly or streaming aggregator]
   ETL --> F[(Fact tables / materialized views)]
   ST[Staff date range + compare] --> Q[Analytics queries]
+  SE[Seller date range] --> QS[Queries always filtered by session seller_id]
   Q --> F
+  QS --> F
   Q --> X[CSV/PDF export job]
   X --> OBJ[File download]
 ```
@@ -343,6 +355,7 @@ flowchart TB
 - Order volume: orders in range by `created_at` or by `delivered_at` — pick one per widget and label it.
 - Soft-deleted catalog items still appear in historical top-products via **line snapshots**.
 - Funnel widgets subscribe to storefront events; if absent, the API returns `unavailable`.
+- **Seller analytics** uses the same facts with a mandatory `seller_id` predicate; never mixed into staff platform totals on the seller shell.
 
 ---
 
@@ -402,8 +415,8 @@ Requirements leave email/SMS open. Design **domain events** now; bind transports
 |-------|-------------------|
 | Order status → shipping / delivered / canceled | Buyer |
 | Product removed after report | Seller |
-| Ticket reply | Requester buyer; seller if buyer–seller ticket |
-| Seller disabled / enabled | Seller contact |
+| Ticket reply | Requester buyer; seller (dashboard + email if configured) if buyer–seller ticket |
+| Seller disabled / enabled | Seller contact; disable also ends seller dashboard access |
 | Admin invited / suspended | That admin |
 
 Dashboard writes the event; a worker sends. Failed send must not roll back the domain change; retries are independent.
@@ -414,10 +427,10 @@ Dashboard writes the event; a worker sends. Failed send must not roll back the d
 
 For phase 1, implement:
 
-1. AuthZ request path (§2)
+1. AuthZ request path (§2) for **staff and seller** sessions
 2. Order create (from storefront or seed) + staff status/cancel (§3 without auto-refund)
-3. Buyer/seller/product CRUD + stock (§4.1, §6)
+3. Buyer/seller/product CRUD + stock (§4.1, §6); **seller dashboard product management** (own catalog only)
 4. Site tickets thread (§7, `site` only)
-5. Minimal audit on admin changes and order status
+5. Minimal audit on admin changes, order status, and seller product mutations
 
-Defer: invoice/transaction graphs, UGC moderation, reports, CRM union timeline, marketing redemptions UI, analytics ETL, blog scheduler.
+Defer: invoice/transaction graphs, UGC moderation, reports, CRM union timeline, marketing redemptions UI, analytics ETL (staff and seller), blog scheduler, buyer–seller tickets on the seller dashboard.
