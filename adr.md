@@ -1,26 +1,27 @@
 # Architecture Decision Records
 
-Decisions that shape the dashboard. Requirements: [requirements.md](./requirements.md). Follow-up design: [system-design.md](./system-design.md).
+Decisions that shape the marketplace portals. Requirements: [requirements.md](./requirements.md). Follow-up design: [system-design.md](./system-design.md).
 
 Status values: **Accepted** (required by the spec or locked here) · **Proposed** (recommended, not yet built) · **Deferred** (explicitly later).
 
 ---
 
-## ADR-001 — Two dashboards: staff (full platform) and seller (scoped shop)
+## ADR-001 — Three panels: Admin, Seller, Buyer
 
 **Status:** Accepted  
 **Date:** 2026-08-25
 
-**Context:** Staff need a centralized admin surface. Sellers need to run their own shop without seeing the rest of the marketplace. Buyers remain storefront-only. Public shop UI is still out of scope.
+**Context:** The product is a **marketplace**. Operators, vendors, and customers each need a signed-in panel. Support is a limited Admin, not a fourth panel.
 
 **Decision:**
 
-- **Staff dashboard:** Superuser / Admin / Support as AdminUser accounts with permission grants. Superuser is an AdminUser with `is_superuser`.
-- **Seller dashboard:** each enabled Seller signs in (`actor_type = seller`) and sees only **analytics**, **tickets from buyers**, and **manage products**, all scoped to that `seller_id`.
-- **Buyers** do not log in to this application.
-- Same modular monolith; separate UI shells and session actor types. Seller grants are **fixed** (not customizable like admin areas).
+- **Admin panel:** **Admin** (full, grants) and **Support** (same shell, limited grants: people, tickets, order view). Superuser = unrestricted Admin + staff management. `actor_type = staff`.
+- **Seller panel:** `actor_type = seller`; modules **analytics, products, orders, tickets**; always scoped to `seller_id`.
+- **Buyer panel:** `actor_type = buyer`; modules **profile, addresses, orders, tickets**; always scoped to `buyer_id`.
+- People directories (all buyers/sellers) exist only on the Admin panel.
+- Same modular monolith; three UI shells; actor types must not share a session.
 
-**Consequences:** Buyer–seller tickets are replied to by the seller on their dashboard (phase 2). Product mutations can come from staff or from the owning seller; audit records `actor_type`. Disable seller revokes dashboard access. CRM unified profiles stay staff-facing.
+**Consequences:** Seller fulfillment uses `OrderSplit`. Buyers use their own login on Buyer. Disable seller / suspend buyer revokes that panel. CRM notes stay Admin-only.
 
 ---
 
@@ -62,9 +63,9 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 **Context:** Orders may involve multiple sellers. Status is defined at order level (processing / shipping / delivered / canceled).
 
-**Decision:** Persist `seller_id` on every **OrderLineItem**. For MVP, if the storefront only creates single-seller orders, still store seller on the line. When multi-seller appears, add `OrderSplit` (order + seller → status) rather than duplicating full orders.
+**Decision:** Persist `seller_id` on every **OrderLineItem** and an **OrderSplit** (`order_id` + `seller_id` → status) so the seller panel can fulfill without seeing other vendors’ lines.
 
-**Consequences:** List filters “by seller” join lines/splits. Cancel/ship one vendor without corrupting another. Parent status derivation must be specified when splits diverge (see [edge-case.md](./edge-case.md) EC-ORD-01).
+**Consequences:** List filters “by seller” join lines/splits. Cancel/ship one vendor without corrupting another. Parent status is derived from splits (see [edge-case.md](./edge-case.md) EC-ORD-01).
 
 ---
 
@@ -106,9 +107,9 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 **Context:** Site support (buyer ↔ platform) vs buyer support (buyer ↔ seller). Superuser sees all.
 
-**Decision:** Single `Ticket` entity with `type`. Phase 1 persists `site` only. Authorization: non-superuser **staff** queries **must** filter; UI hiding is insufficient. **Sellers** query only `buyer_seller` tickets for their `seller_id` (phase 2). Seller is both a **context FK** and a **dashboard actor** for those tickets.
+**Decision:** Single `Ticket` entity with `type`. Phase 1 persists `site` only. Authorization: non-superuser **staff** queries **must** filter; UI hiding is insufficient. **Sellers** query only `buyer_seller` tickets for their `seller_id` (phase 2). Seller is both a **context FK** and a **portal actor** for those tickets.
 
-**Consequences:** Phase 2 adds `buyer_seller` without a second ticketing product. Message `author_type` includes `seller` when the vendor replies from the seller dashboard. Staff can still view and reply.
+**Consequences:** Phase 2 adds `buyer_seller` without a second ticketing product. Message `author_type` includes `seller` when the vendor replies from the seller panel and `buyer` when the customer replies from the buyer panel. Admin/Support can still view and reply.
 
 ---
 
@@ -119,7 +120,7 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 **Context:** Global requirement: audit admin changes, order status updates, product removals; invoices void/amend also require audit.
 
-**Decision:** Append-only `AuditLog` with actor (`admin` or `seller`), action, entity, reason (when required), before/after. MVP writes logs even if the **audit UI** is phase 3. Logs are not editable from the dashboard.
+**Decision:** Append-only `AuditLog` with actor (`admin` or `seller`), action, entity, reason (when required), before/after. MVP writes logs even if the **audit UI** is phase 3. Logs are not editable from the portals.
 
 **Consequences:** Storage growth; retention policy TBD. Refunds, permission changes, suspend, report-driven removal, **and seller product/ticket mutations** are in the same log.
 
@@ -145,8 +146,8 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 | Phase | In |
 |-------|-----|
-| MVP | Staff auth, admins/permissions, orders, buyers, sellers, products, site tickets; **seller login + seller product management** |
-| Phase 2 | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets **on staff and seller dashboards** |
+| MVP | Admin panel (Admin / Support), orders, people, products, site tickets; **seller panel (products + orders)**; **buyer panel (profile, addresses, own orders)** |
+| Phase 2 | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets on **all three panels** |
 | Phase 3 | Analytics (platform-wide **and** seller-scoped), marketing, CRM, blog, advanced exports, audit UI |
 
 **Consequences:** Data model still **reserves** FKs and snapshot fields so phase 2 does not rewrite order history. Do not build marketing/CRM UI in MVP. Seller analytics waits for phase 3 with staff analytics.
@@ -209,7 +210,7 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Web UI | React + Next.js App Router | Staff and seller shells, SSR/auth cookies |
+| Web UI | React + Next.js App Router | Admin, Seller, and Buyer panels, SSR/auth cookies |
 | API | Same app Route Handlers or a dedicated API service | Start modular monolith; split if storefront already owns a backend |
 | DB | PostgreSQL | Strong constraints, JSON snapshots, pagination |
 | Auth | Session cookies (HTTP-only) + server-side session store | Matches NFR session timeout better than long-lived JWT in localStorage |
@@ -244,23 +245,26 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 **Decision:** Component library must support keyboard, labels, and contrast. Destructive actions use confirmations (refund, cancel, delete, suspend). Mobile phone is **not** a primary target.
 
-**Consequences:** Custom charts in analytics (phase 3) need accessible alternatives (tables/export). Applies to **staff and seller** shells.
+**Consequences:** Custom charts in analytics (phase 3) need accessible alternatives (tables/export). Applies to **staff and seller** portals.
 
 ---
 
-## ADR-017 — Seller data isolation by session seller_id
+## ADR-017 — Panel data isolation by session actor id
 
 **Status:** Accepted  
 **Date:** 2026-08-25
 
-**Context:** Sellers operate a dashboard with analytics, buyer tickets, and products. A seller must never read or write another vendor’s data.
+**Context:** Seller and Buyer panels must never leak another party’s data. Support is limited Admin on the Admin panel.
 
 **Decision:**
 
-- Session stores `actor_type = seller` and `seller_id`. Staff sessions store `actor_type = staff` and `admin_id`.
-- Seller module set is fixed: analytics (view), tickets (view/respond on `buyer_seller`), products (view/edit own).
-- Every seller list/detail/mutation **injects** `seller_id` from the session. Client-supplied ids that do not match return 404/403.
-- New products created by a seller always set `seller_id` from the session.
-- Disable/suspend/delete seller invalidates that seller’s sessions.
+- Session stores exactly one of: `actor_type=staff` + `admin_id` | `seller` + `seller_id` | `buyer` + `buyer_id`.
+- Seller module set is fixed: analytics, products, orders (own splits), tickets (`buyer_seller`).
+- Buyer module set is fixed: profile, addresses, orders (own), tickets (requester).
+- Every seller/buyer list/detail/mutation **injects** the session id. Mismatched ids → 404/403.
+- Disable seller / suspend or anonymize buyer invalidates that panel’s sessions.
+- Refunds, invoices, and people **directories** are Admin-panel only.
 
-**Consequences:** Shared tables (Product, Ticket, fact tables) rely on query filters and tests, not a separate database per seller. Staff still see all rows their grants allow.
+**Consequences:** Shared tables rely on query filters and tests. Support still uses Admin-panel grants, not a fourth shell.
+
+---

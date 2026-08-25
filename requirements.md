@@ -1,45 +1,59 @@
-# E-Commerce Site Management Dashboard — Requirements
+# E-Commerce Marketplace — Requirements
 
 ## 1. Overview
 
-A centralized dashboard product for an e-commerce marketplace. **Staff** (superuser/admin/support) operate the whole platform. **Sellers** have their own dashboard, limited to their shop.
+One marketplace, **three panels**:
+
+```
+                    MARKETPLACE
+                         │
+         ┌───────────────┼───────────────┐
+         │               │               │
+    ADMIN PANEL     SELLER PANEL    BUYER PANEL
+         │               │               │
+    ┌────┴────┐          │               ├── Profile
+    │         │          ├── Analytics   ├── Addresses
+  ADMIN    SUPPORT       ├── Products    ├── Orders
+  (full)  (limited)      ├── Orders      └── Tickets
+                         └── Tickets
+```
 
 **Goals**
 
-- Give staff a single place to operate the storefront and marketplace.
-- Give each **seller** a dashboard to run their own shop: analytics, tickets from buyers, and product management.
-- Support role-based access so each admin sees only what they need.
-- Provide full visibility and control for superusers.
+- **Admin panel:** full operators run the marketplace. **Support** uses the same panel with a **limited admin** role (tickets + people + order view; no admin management, no refunds unless granted).
+- **Seller panel:** each vendor runs their shop (analytics, products, orders, tickets), isolated by `seller_id`.
+- **Buyer panel:** each customer manages their account (profile, addresses, own orders, own tickets), isolated by `buyer_id`.
+- Superuser is a full Admin with every Admin-panel module plus staff management.
 
 **Out of scope (for now)**
 
-- Public storefront / buyer-facing shop UI
 - Payment gateway integration details (captured at transaction level only)
+- Full public marketing storefront chrome (browse/cart may share the buyer session; this spec covers the **buyer panel**)
 
 ---
 
 ## 2. Actors & Roles
 
-| Role | Description |
-|------|-------------|
-| **Superuser** | Full access to every module, all data, and admin management (promote/demote admins, assign permissions). |
-| **Admin** | Access scoped by assigned permissions (see §15). |
-| **Buyer** | End customer (managed via staff dashboard; not a dashboard user). |
-| **Seller** | Marketplace vendor. **Has a seller dashboard** (analytics, tickets from buyers, manage products). Also managed as a record by staff. |
-| **Support** | Supporting users (buyers and sellers) |
-
+| Role | Panel | Description |
+|------|--------|-------------|
+| **Admin** | Admin | Operates the marketplace (catalog, commerce, content, people, settings) within assigned permissions. Superuser = unrestricted Admin + staff management. |
+| **Support** | Admin (limited) | Same Admin panel. Typical grants: Buyers, Sellers, Tickets, Orders **view**. Cannot manage staff, issue refunds, or edit marketing/blog unless extra grants are added. |
+| **Seller** | Seller | Vendor. Modules: **analytics**, **products**, **orders**, **tickets** — own shop only. Also a people record Admin/Support can manage. |
+| **Buyer** | Buyer | Customer. Modules: **profile**, **addresses**, **orders**, **tickets** — own account only. Also a people record Admin/Support can manage. |
+z
 ---
 
-## 3. Global Dashboard Requirements
+## 3. Global Panel Requirements
 
-Two shells share these rules: **staff dashboard** and **seller dashboard**.
+Three shells: **Admin panel** (full Admin or limited Support), **Seller panel**, **Buyer panel**.
 
 - Responsive layout usable on desktop (primary) and tablet.
-- Staff: global search across orders, buyers, sellers, products, and tickets (stretch goal). Seller: search only own products and buyer tickets (stretch).
-- Audit trail for sensitive actions (admin changes, order status updates, product removals, seller product and ticket mutations).
+- Admin: global search across orders, buyers, sellers, products, and tickets (stretch). Seller: own products, orders, tickets. Buyer: own orders and tickets.
+- Audit trail for sensitive actions (staff changes, order status, product removals, seller/buyer mutations).
 - Consistent list views: filter, sort, pagination, bulk actions where applicable.
 - Detail views with related records (e.g. order → buyer, seller, invoice, transactions).
-- Seller never sees another seller’s records.
+- Seller never sees another seller’s records. Buyer never sees another buyer’s records.
+- Admin/Support manage **people records** (all buyers and sellers). Seller and Buyer panels never expose those directories.
 
 ---
 
@@ -47,10 +61,11 @@ Two shells share these rules: **staff dashboard** and **seller dashboard**.
 
 **Purpose:** High-level and drill-down metrics for business decisions.
 
-**Staff vs seller**
+**By panel**
 
-- **Staff / superuser:** platform-wide metrics (all sellers).
-- **Seller dashboard:** the same kinds of metrics **scoped to that seller only** (their orders, revenue, products, and buyer tickets). No other seller’s data.
+- **Admin panel:** platform-wide metrics (all sellers), if granted Analytics. Support typically does **not** get Analytics.
+- **Seller panel:** shop metrics **scoped to that seller only**.
+- **Buyer panel:** no marketplace analytics (order history is enough).
 
 **Metrics & views**
 
@@ -90,7 +105,7 @@ Two shells share these rules: **staff dashboard** and **seller dashboard**.
 
 ## 6. CRM
 
-**Purpose:** Relationship management for buyers and sellers.
+**Purpose:** Relationship management for buyers and sellers (Admin panel). Internal notes are never shown on seller or buyer panels.
 
 **Features**
 
@@ -129,7 +144,7 @@ Two shells share these rules: **staff dashboard** and **seller dashboard**.
 - Delivery method
 - Status history with actor and timestamp
 
-**Actions**
+**Actions (Admin / Support as permitted)**
 
 - View list and detail (CRUD on order **information** — create/read/update as allowed by role; delete restricted or soft-delete)
 - Update status (processing → shipping → delivered)
@@ -137,33 +152,64 @@ Two shells share these rules: **staff dashboard** and **seller dashboard**.
 - Assign or reassign to fulfillment workflow (if applicable)
 - View linked invoice and transactions
 
+**Actions (seller panel)**
+
+- List and view **orders that include this seller** (line items / splits for `seller_id`)
+- Update status on **their** fulfillment (processing → shipping → delivered)
+- Cancel **their** unfilled split with mandatory reason (does not auto-refund)
+- View shipping snapshot and buyer contact needed for fulfillment
+- Cannot see other sellers’ line items on a split order; cannot initiate refunds or edit invoices
+
+**Actions (buyer panel)**
+
+- List and view **own** orders only
+- Cancel own order when status still allows it (same machine: not after `delivered`; reason required)
+- Cannot update fulfillment status, refund, or see other buyers’ orders
+
 ---
 
 ## 8. Buyers
 
-**Purpose:** Manage customer accounts and related data.
+**Purpose:** Customer accounts. Admin/Support manage all buyers on the Admin panel. Each buyer signs in to the **buyer panel**.
 
 **Fields**
 
 - Name
 - Username
-- Email
+- Email / login
+- Password (buyer panel)
 - Addresses (multiple: billing, shipping, default flags)
 - Registration date, last activity
 - Order history (linked)
 - Support tickets (linked)
+- Status (`active`, `suspended`, `anonymized`)
 
-**Actions**
+**Actions (Admin / Support)**
 
 - CRUD buyer records (delete = soft-delete or anonymize per policy)
 - View/edit addresses
 - View order and ticket history from profile
+- Suspend buyer (blocks buyer-panel login)
+- Provision or reset buyer panel login
+
+### 8.1 Buyer panel
+
+Buyers sign in to a **separate panel** (session bound to `buyer_id`). They are not Admin or Seller.
+
+| Module | Buyer can |
+|--------|-----------|
+| **Profile** | View/edit own name, username, email, password. |
+| **Addresses** | CRUD own addresses; default shipping/billing flags. |
+| **Orders** | List/detail own orders; cancel when allowed; see line items and status history. |
+| **Tickets** | Open, list, and reply on tickets where they are the requester (site and buyer–seller). |
+
+**Buyer panel does not include:** analytics, catalog management, other buyers/sellers, invoices/refunds, marketing, blog, or staff settings.
 
 ---
 
 ## 9. Sellers
 
-**Purpose:** Manage marketplace vendors and their storefront settings.
+**Purpose:** Manage marketplace vendors (Admin panel people records) and their storefront settings.
 
 **Fields**
 
@@ -178,22 +224,23 @@ Two shells share these rules: **staff dashboard** and **seller dashboard**.
 **Actions (staff)**
 
 - CRUD seller records
-- Enable / disable seller account (disabled sellers cannot sign in to the seller dashboard)
+- Enable / disable seller account (disabled sellers cannot sign in to the seller panel)
 - Edit delivery methods and support settings
 - View orders and tickets involving this seller
-- Provision or reset seller dashboard login
+- Provision or reset seller panel login
 
-### 9.1 Seller dashboard
+### 9.1 Seller panel
 
-Sellers sign in to a **separate dashboard shell** (same product, seller-scoped session). They are not staff and do not receive admin permission grants.
+Sellers sign in to the **seller panel** (session bound to `seller_id`). They are not Admin or Buyer.
 
 | Module | Seller can |
 |--------|------------|
 | **Analytics** | View metrics for their shop only (revenue, order volume, AOV, status breakdown, top products). Date range and comparison as in §4, scoped. |
-| **Tickets from buyers** | List, open, reply, and update status on **buyer ↔ seller** tickets where they are the seller. No site-support tickets and no other sellers’ tickets. |
-| **Manage products** | CRUD their own catalog: images, variants, stock, publish / unpublish. Cannot change seller association or edit another seller’s products. |
+| **Products** | CRUD their own catalog: images, variants, stock, publish / unpublish. Cannot change seller association or edit another seller’s products. |
+| **Orders** | List/detail for orders that include this seller; advance or cancel **their** fulfillment; see buyer/shipping snapshot on those orders. |
+| **Tickets** | List, open, reply, and update status on **buyer ↔ seller** tickets for their shop. No site-support tickets and no other sellers’ tickets. |
 
-**Seller dashboard does not include:** marketing, CRM, all-platform orders/invoices/transactions, buyers/sellers directories, reviews/Q&A/report moderation, blog, or admin management.
+**Seller panel does not include:** marketing, CRM, invoices/transactions/refunds, buyers/sellers directories, reviews/Q&A/report moderation, blog, or admin management.
 
 ---
 
@@ -247,7 +294,7 @@ Sellers sign in to a **separate dashboard shell** (same product, seller-scoped s
 
 ## 12. Website Products
 
-**Purpose:** Catalog management for items sold on the site. Staff can manage any product. **Sellers manage only their own products** from the seller dashboard.
+**Purpose:** Catalog management. Admin can manage any product. **Sellers manage only their own products** from the seller panel.
 
 **Fields**
 
@@ -352,18 +399,25 @@ Sellers sign in to a **separate dashboard shell** (same product, seller-scoped s
 
 - CRUD posts
 - Schedule or publish immediately
-- Moderate comments from dashboard
+- Moderate comments from the Admin panel
 
 ---
 
 ## 17. Admins
 
-**Purpose:** Staff accounts with granular access control.
+**Purpose:** Admin-panel staff accounts. **Support is a limited Admin** on this same panel (role template), not a separate product.
+
+**Role templates (Admin panel)**
+
+| Template | Typical access |
+|----------|----------------|
+| **Admin** | Commerce, catalog, content, marketing, CRM, analytics — as granted. Superuser = all Admin-panel modules + admin management. |
+| **Support** | **Limited admin:** Buyers, Sellers, Tickets, Orders **view**. No staff management, no refunds unless extra grants. |
 
 **Fields**
 
 - Name, email, username
-- Role template or custom permission set
+- Role template (`admin`, `support`, or custom) or custom permission set
 - Status (active, suspended)
 - Last login
 
@@ -408,20 +462,22 @@ Sellers sign in to a **separate dashboard shell** (same product, seller-scoped s
 
 **Actions**
 
-- Staff: list and filter by type, status, buyer, seller; assign to admin; reply and change status
-- **Seller dashboard:** list/reply/status only on buyer–seller tickets for their shop
-- Superuser: view **all** tickets across buyers and sellers
+- **Support (limited admin):** list and filter tickets; assign; reply; open linked buyer/seller/order
+- **Admin:** same as granted; superuser sees **all** tickets
+- **Seller panel:** list/reply/status only on buyer–seller tickets for their shop
+- **Buyer panel:** open/list/reply only on tickets where they are the requester
 
 ---
 
 ## 19. Superuser — Specific Requirements
 
-The superuser role must:
+The superuser (elevated **Admin** on the Admin panel) must:
 
-- Access **every page and module** in the dashboard without permission restrictions.
+- Access **every page and module** in the **Admin panel** without permission restrictions.
 - Perform **full CRUD** on orders and related operational data (within business rules above).
 - View **all tickets** — both site support and buyer/seller support — with global filters.
-- Open the **admin management** page: list all admins, create/edit/suspend, assign permissions, promote or demote roles.
+- Open the **admin management** page: list all Admin-panel users (including Support), create/edit/suspend, assign permissions, promote or demote roles.
+- Superuser does **not** use the seller or buyer panels to operate those shops/accounts; those stay on their own panels.
 
 ---
 
@@ -435,40 +491,34 @@ The superuser role must:
 | **Availability** | Target 99.5% uptime (production) |
 | **Data** | Soft-delete for buyers/sellers/products where legally required; backup strategy TBD |
 | **Localization** | UI language TBD; currency and date formatting configurable |
-| **Accessibility** | WCAG 2.1 AA target for staff and seller UI |
+| **Accessibility** | WCAG 2.1 AA target for Admin, Seller, and Buyer panels |
 
 ---
 
 ## 21. Suggested Module Map (Navigation)
 
 ```
-Staff dashboard
-├── Analytics
-├── Marketing
-├── CRM
-├── Commerce
-│   ├── Orders
-│   ├── Invoices
-│   └── Transactions
-├── People
-│   ├── Buyers
-│   └── Sellers
-├── Catalog
+MARKETPLACE
+├── Admin panel          ← Admin (full) | Support (limited admin)
+│   ├── Analytics
+│   ├── Marketing
+│   ├── CRM
+│   ├── Commerce (Orders, Invoices, Transactions)
+│   ├── People (Buyers, Sellers)
+│   ├── Catalog (Products, Reviews, Q&A, Reports)
+│   ├── Content (Blog)
+│   ├── Tickets
+│   └── Settings → Admins (superuser)
+├── Seller panel         ← Seller (own shop)
+│   ├── Analytics
 │   ├── Products
-│   ├── Reviews
-│   ├── Q&A
-│   └── Product Reports
-├── Content
-│   └── Blog
-├── Support
+│   ├── Orders
 │   └── Tickets
-└── Settings
-    └── Admins (superuser)
-
-Seller dashboard (scoped to that seller)
-├── Analytics
-├── Tickets (from buyers)
-└── Products
+└── Buyer panel          ← Buyer (own account)
+    ├── Profile
+    ├── Addresses
+    ├── Orders
+    └── Tickets
 ```
 
 ---
@@ -486,6 +536,6 @@ Seller dashboard (scoped to that seller)
 
 | Phase | Scope |
 |-------|--------|
-| **MVP** | Staff auth, admins/permissions, orders, buyers, sellers, products; **seller login + seller product management**; tickets (site support) |
-| **Phase 2** | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets **including seller dashboard tickets** |
-| **Phase 3** | Analytics (staff platform-wide **and** seller-scoped), marketing, CRM, blog, advanced exports and audit UI |
+| **MVP** | Admin panel (Admin / Support), orders, people, products; **seller panel** (products + orders); **buyer panel** (profile, addresses, own orders); site tickets |
+| **Phase 2** | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets on Admin, Seller, and Buyer panels |
+| **Phase 3** | Analytics (Admin + Seller), marketing, CRM, blog, advanced exports and audit UI |

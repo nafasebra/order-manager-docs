@@ -1,6 +1,6 @@
 # Entities
 
-Logical data model for the staff and seller dashboards. Field lists follow [requirements.md](./requirements.md). Physical types and table names are left to implementation; see [system-design.md](./system-design.md) and [adr.md](./adr.md).
+Logical data model for the **Admin**, **Seller**, and **Buyer** panels. Field lists follow [requirements.md](./requirements.md). Physical types and table names are left to implementation; see [system-design.md](./system-design.md) and [adr.md](./adr.md).
 
 Related: [use-case.md](./use-case.md) · [data-flow.md](./data-flow.md) · [edge-case.md](./edge-case.md)
 
@@ -47,6 +47,7 @@ erDiagram
   ProductVariant ||--o{ StockMovement : adjusts
 
   Order ||--|{ OrderLineItem : contains
+  Order ||--o{ OrderSplit : splits
   Order ||--o{ OrderStatusHistory : tracks
   Order ||--o| Invoice : billed_by
   Order ||--o{ Transaction : funded
@@ -70,7 +71,7 @@ erDiagram
 
 ### AdminUser
 
-Staff account. Superuser is a flag or a reserved role that bypasses permission checks but not audit.
+Admin-panel account (full Admin or limited Support). Superuser bypasses permission checks but not audit.
 
 | Field | Notes |
 |-------|--------|
@@ -89,7 +90,7 @@ Staff account. Superuser is a flag or a reserved role that bypasses permission c
 
 ### RoleTemplate
 
-Named permission bundle (e.g. “Support”, “Catalog editor”).
+Named permission bundle (e.g. **Admin**, **Support**, “Catalog editor”).
 
 | Field | Notes |
 |-------|--------|
@@ -106,7 +107,7 @@ Named permission bundle (e.g. “Support”, “Catalog editor”).
 | area | See catalog below |
 | actions | Subset of `view`, `edit`, `create`, `update_status`, `refund`, `moderate`, `respond`, `manage_admins` |
 
-**Permission areas** (requirements §15): `analytics`, `marketing`, `crm`, `orders`, `buyers`, `sellers`, `invoices`, `transactions`, `products`, `reviews`, `qa`, `product_reports`, `blog`, `tickets`, `admin_management`.
+**Permission areas** (requirements §17): `analytics`, `marketing`, `crm`, `orders`, `buyers`, `sellers`, `invoices`, `transactions`, `products`, `reviews`, `qa`, `product_reports`, `blog`, `tickets`, `admin_management`.
 
 ### AuditLog
 
@@ -114,8 +115,9 @@ Named permission bundle (e.g. “Support”, “Catalog editor”).
 |-------|--------|
 | id | |
 | actor_admin_id | Null if system job or seller actor |
-| actor_seller_id | Set when the actor is a seller dashboard user |
-| actor_type | `admin`, `seller`, `system` |
+| actor_seller_id | Set when the actor is a seller-panel user |
+| actor_buyer_id | Set when the actor is a buyer-panel user |
+| actor_type | `admin`, `seller`, `buyer`, `system` |
 | action | e.g. `order.status_change`, `admin.suspend`, `product.remove`, `invoice.void`, `transaction.refund` |
 | entity_type, entity_id | |
 | reason | Required for cancel, void, refund, override |
@@ -129,17 +131,19 @@ Named permission bundle (e.g. “Support”, “Catalog editor”).
 
 ### Buyer
 
-Dashboard-managed customer. Not a dashboard login in scope.
+Customer. Admin/Support manage the people record. The buyer **also signs in** to the buyer panel (profile, addresses, orders, tickets).
 
 | Field | Notes |
 |-------|--------|
 | id | |
 | name | |
 | username | Unique |
-| email | Unique |
+| email | Unique login |
+| password_hash | Buyer panel credentials; never exposed in API |
+| last_login_at | Buyer panel |
 | registered_at | |
-| last_activity_at | Storefront or order activity, not admin views |
-| status | `active`, `suspended`, `anonymized` |
+| last_activity_at | Storefront, orders, or panel use |
+| status | `active`, `suspended`, `anonymized` — suspended/anonymized blocks buyer login |
 | anonymized_at | Set when PII stripped |
 | created_at, updated_at, deleted_at | Soft-delete |
 
@@ -158,16 +162,16 @@ Orders **copy** address fields onto the order at placement so later edits do not
 
 ### Seller
 
-Marketplace vendor. Staff manage the record. The seller **also signs in** to a seller dashboard (analytics, tickets from buyers, products).
+Marketplace vendor. Staff manage the **platform-data** record. The seller **also signs in** to the seller panel (analytics, products, orders, tickets).
 
 | Field | Notes |
 |-------|--------|
 | id | |
 | display_name | Business / storefront name |
 | contact_name, contact_email, contact_phone | |
-| login_email | Unique dashboard login; may match contact email |
-| password_hash | Seller dashboard credentials; never exposed in API |
-| last_login_at | Seller dashboard |
+| login_email | Unique seller-portal login; may match contact email |
+| password_hash | Seller portal credentials; never exposed in API |
+| last_login_at | Seller portal |
 | linked_buyer_id | Optional, when the vendor also has a buyer profile |
 | workplace_address_text | |
 | workplace_geo | Optional lat/lng or map place id |
@@ -276,7 +280,7 @@ Recommended for audit of stock adjustments.
 | delta | |
 | reason | `manual`, `order_reserve`, `order_release`, `correction` |
 | actor_admin_id | Null if system or seller |
-| actor_seller_id | Set when adjusted from seller dashboard |
+| actor_seller_id | Set when adjusted from seller panel |
 | created_at | |
 
 ---
@@ -299,7 +303,7 @@ Recommended for audit of stock adjustments.
 | version | Optimistic concurrency |
 | deleted_at | Restricted soft-delete |
 
-Multi-seller: either (a) one Order with line items pointing at different sellers, plus optional `OrderSplit` per seller status, or (b) parent Order + child orders. See ADR-004.
+Multi-seller: persist `OrderSplit` per seller (seller panel acts only on matching split). See ADR-004.
 
 ### OrderLineItem
 
@@ -322,13 +326,15 @@ Multi-seller: either (a) one Order with line items pointing at different sellers
 | id | |
 | order_id | |
 | from_status, to_status | |
-| actor_admin_id | Null if system |
+| actor_admin_id | Null if system or seller |
+| actor_seller_id | Set when seller advances/cancels their split |
+| order_split_id | Optional; required when per-seller status is used |
 | note | |
 | created_at | |
 
-### OrderSplit (optional)
+### OrderSplit
 
-Per-seller fulfillment when one checkout has multiple vendors.
+Per-seller fulfillment. **Required for the seller panel** so a vendor only acts on their rows.
 
 | Field | Notes |
 |-------|--------|
@@ -547,11 +553,12 @@ Email/notification tracking: `sent`, `opened`, `clicked` — only when an ESP is
 | ticket_id | |
 | author_type | `admin`, `buyer`, `seller`, `system` |
 | author_admin_id | When admin |
-| author_seller_id | When seller replies from seller dashboard |
+| author_seller_id | When seller replies from seller panel |
+| author_buyer_id | When buyer replies from buyer panel |
 | body | |
 | created_at | |
 
-Seller dashboard users persist messages with `author_type = seller`. Staff may still proxy a seller-looking message only with audit. Site-support tickets have `seller_id` null and are never listed on the seller dashboard.
+Seller-panel users persist `author_type = seller`. Buyer-panel users persist `author_type = buyer`. Site-support tickets have `seller_id` null and are never listed on the seller panel.
 
 ---
 
@@ -580,7 +587,8 @@ Treat these as consistency boundaries:
 | **Product** | Images, variants, stock; publish rules |
 | **Ticket** | Messages; assignment; type-specific seller |
 | **AdminUser** | Grants; cannot remove last superuser |
-| **Buyer / Seller** | Addresses / delivery methods; anonymize; seller login; disable blocks dashboard |
+| **Buyer / Seller** | Addresses / delivery methods; anonymize; seller login; disable blocks portal |
+| **OrderSplit** | Per-seller status; seller panel commands only on matching `seller_id` |
 | **ProductReport** | Resolution action required on approve |
 | **Transaction** | Refundable balance computed from siblings on the same order/payment |
 
@@ -590,8 +598,8 @@ Treat these as consistency boundaries:
 
 | Phase | Entities to persist |
 |-------|---------------------|
-| **MVP** | AdminUser, PermissionGrant, RoleTemplate, AuditLog (minimal), Buyer, Address, Seller (including login fields), SellerDeliveryMethod, Product, ProductImage, ProductVariant, StockMovement, Order, OrderLineItem, OrderStatusHistory, Ticket (type `site`), TicketMessage |
-| **Phase 2** | Invoice*, Transaction, Review, Question, Answer, ProductReport, Ticket type `buyer_seller` (seller dashboard tickets), OrderSplit if not in MVP |
+| **MVP** | AdminUser, PermissionGrant, RoleTemplate (Admin / Support), AuditLog (minimal), Buyer (including login fields), Address, Seller (including login fields), SellerDeliveryMethod, Product, ProductImage, ProductVariant, StockMovement, Order, OrderLineItem, OrderSplit, OrderStatusHistory, Ticket (type `site`), TicketMessage |
+| **Phase 2** | Invoice*, Transaction, Review, Question, Answer, ProductReport, Ticket type `buyer_seller` (seller panel tickets) |
 | **Phase 3** | Campaign, Coupon*, Banner, CrmNote, Tag, CrmTask, BlogPost, BlogComment, richer AuditLog UI, analytics projections (staff and seller-scoped) |
 
-\*Coupons may be needed earlier if the storefront already discounts; the **dashboard** CRM/marketing UI is phase 3.
+\*Coupons may be needed earlier if the storefront already discounts; the **Admin panel** CRM/marketing UI is phase 3.

@@ -1,6 +1,6 @@
 # Use Cases
 
-Derived from [requirements.md](./requirements.md). Actors, modules, and constraints follow that document. **Buyers** are managed subjects (not dashboard users). **Sellers have a seller dashboard** limited to analytics, tickets from buyers, and product management.
+Derived from [requirements.md](./requirements.md). The marketplace has **three panels**: **Admin** (full Admin or limited Support), **Seller**, and **Buyer**.
 
 Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data-flow.md](./data-flow.md)
 
@@ -8,16 +8,15 @@ Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data
 
 ## 1. Actors
 
-| Actor | Dashboard user? | Notes |
-|-------|-----------------|--------|
-| **Superuser** | Yes (staff shell) | Unrestricted access to every staff module, including admin management and all tickets. |
-| **Admin** | Yes (staff shell) | Access limited to assigned permission areas (requirements §15). |
-| **Support** | Yes (staff shell; admin with support-scoped permissions, or a dedicated support role) | Handles site-support and/or buyer–seller tickets. |
-| **Buyer** | No | End customer. Created/updated via staff dashboard (and eventually the storefront). |
-| **Seller** | Yes (seller shell) | Marketplace vendor. Dashboard modules: **analytics**, **tickets from buyers**, **manage products**. Also a record managed by staff. |
-| **System** | — | Background jobs, webhooks, scheduled publishes, session expiry. |
+| Actor | Panel | Notes |
+|-------|--------|--------|
+| **Admin** | Admin | Marketplace operator. Grants per requirements §17. Superuser = full Admin panel + staff management. |
+| **Support** | Admin (limited) | Same Admin panel. Typical: people + tickets + order view. Not a fourth panel. |
+| **Seller** | Seller | **Analytics, products, orders, tickets** for `seller_id` only. |
+| **Buyer** | Buyer | **Profile, addresses, orders, tickets** for `buyer_id` only. |
+| **System** | — | Jobs, webhooks, session expiry. |
 
-In the flows below, **Staff** means Superuser or an Admin whose permissions allow the action. **Seller** means a vendor signed into the seller dashboard; every query is scoped to that seller’s `seller_id`.
+**Staff** means Admin or Support. **Seller** queries always filter `seller_id`. **Buyer** queries always filter `buyer_id`.
 
 ---
 
@@ -47,16 +46,28 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 | UC-ORD-06 | Assign fulfillment | Staff | Orders |
 | UC-BYR-01 | Manage buyer records | Staff | Buyers |
 | UC-BYR-02 | Manage buyer addresses | Staff | Buyers |
+| UC-BYR-AUTH-01 | Sign in to buyer panel | Buyer | Buyer auth |
+| UC-BYR-PROF-01 | Edit own profile | Buyer | Buyer panel |
+| UC-BYR-PROF-02 | Manage own addresses | Buyer | Buyer panel |
+| UC-BYR-ORD-01 | Browse own orders | Buyer | Buyer orders |
+| UC-BYR-ORD-02 | View own order | Buyer | Buyer orders |
+| UC-BYR-ORD-03 | Cancel own order | Buyer | Buyer orders |
+| UC-BYR-TKT-01 | Browse own tickets | Buyer | Buyer tickets |
+| UC-BYR-TKT-02 | Open or reply to a ticket | Buyer | Buyer tickets |
 | UC-SLR-01 | Manage seller records | Staff | Sellers |
 | UC-SLR-02 | Enable or disable seller | Staff | Sellers |
 | UC-SLR-03 | Configure seller delivery and support | Staff | Sellers |
-| UC-SEL-AUTH-01 | Sign in to seller dashboard | Seller | Seller auth |
+| UC-SEL-AUTH-01 | Sign in to seller panel | Seller | Seller auth |
 | UC-SEL-AN-01 | View shop analytics | Seller | Seller analytics |
 | UC-SEL-TKT-01 | Browse tickets from buyers | Seller | Seller tickets |
 | UC-SEL-TKT-02 | Reply to a buyer ticket | Seller | Seller tickets |
 | UC-SEL-PRD-01 | Manage own products | Seller | Seller products |
 | UC-SEL-PRD-02 | Manage own images, variants, and stock | Seller | Seller products |
 | UC-SEL-PRD-03 | Publish or unpublish own product | Seller | Seller products |
+| UC-SEL-ORD-01 | Browse own orders | Seller | Seller orders |
+| UC-SEL-ORD-02 | View own order detail | Seller | Seller orders |
+| UC-SEL-ORD-03 | Advance own fulfillment status | Seller | Seller orders |
+| UC-SEL-ORD-04 | Cancel own fulfillment | Seller | Seller orders |
 | UC-INV-01 | Browse invoices | Staff | Invoices |
 | UC-INV-02 | View and download invoice | Staff | Invoices |
 | UC-INV-03 | Create manual invoice | Staff | Invoices |
@@ -87,22 +98,22 @@ In the flows below, **Staff** means Superuser or an Admin whose permissions allo
 ### UC-AUTH-01 — Sign in
 
 **Actor:** Staff  
-**Goal:** Access the **staff** dashboard with an authenticated session.  
+**Goal:** Access the **Admin panel**.  
 **Preconditions:** Account exists and status is `active`. HTTPS in production.
 
 **Main flow**
 
-1. Staff opens the staff login and submits email/username and password.
-2. System authenticates credentials as an AdminUser (not a seller login).
-3. System creates a staff session and loads the permission set for the account.
-4. System redirects to the staff overview (or the last allowed page).
+1. Admin or Support opens Admin login and submits credentials.
+2. System authenticates as AdminUser (not seller or buyer).
+3. System creates a staff session and loads grants (Admin, Support, custom, or superuser).
+4. System redirects to the Admin overview (or last allowed page).
 
 **Alternate / exception**
 
-- Invalid credentials → generic failure; no account enumeration.
+- Invalid credentials → generic failure.
 - Account `suspended` → access denied.
-- Superuser → full module map; Admin → only permitted modules in navigation.
-- Seller credentials on the staff login → access denied (sellers use UC-SEL-AUTH-01).
+- Superuser → full Admin map; Admin / Support → granted modules only.
+- Seller or buyer credentials on Admin login → denied.
 
 **Postcondition:** Authenticated session; subsequent requests are permission-checked.
 
@@ -341,6 +352,77 @@ Staff analytics are platform-wide (UC-AN-*). Seller shop analytics are UC-SEL-AN
 
 ---
 
+## 8.1 Buyer panel
+
+### UC-BYR-AUTH-01 — Sign in to buyer panel
+
+**Actor:** Buyer  
+**Goal:** Access the buyer panel.  
+**Preconditions:** Buyer exists, status `active`, login provisioned.
+
+**Main flow:** Buyer submits credentials → session `actor_type = buyer`, `buyer_id` → profile/orders home.
+
+**Exception:** `suspended` / anonymized → denied. Admin or seller credentials on buyer login → denied.
+
+---
+
+### UC-BYR-PROF-01 — Edit own profile
+
+**Actor:** Buyer  
+**Goal:** Update own name, username, email, password.
+
+**Exception:** Duplicate email/username → reject. Cannot change another buyer’s profile.
+
+---
+
+### UC-BYR-PROF-02 — Manage own addresses
+
+**Actor:** Buyer  
+**Goal:** Same address rules as UC-BYR-02, only for `buyer_id = session`.
+
+---
+
+### UC-BYR-ORD-01 — Browse own orders
+
+**Actor:** Buyer  
+**Goal:** Paginated list of orders where `buyer_id = session`.
+
+---
+
+### UC-BYR-ORD-02 — View own order
+
+**Actor:** Buyer  
+**Goal:** See line items, status history, shipping snapshot, related tickets.
+
+**Exception:** Other buyers’ orders → 403/404. Invoices/transactions as displayed snapshots only if issued to this buyer (phase 2); no refund command.
+
+---
+
+### UC-BYR-ORD-03 — Cancel own order
+
+**Actor:** Buyer  
+**Goal:** Cancel when status allows (`processing` or `shipping` per policy), with mandatory reason.
+
+**Exception:** `delivered` → **Block**. Does not auto-refund.
+
+---
+
+### UC-BYR-TKT-01 — Browse own tickets
+
+**Actor:** Buyer  
+**Goal:** List tickets where `requester_buyer_id = session` (site and buyer–seller).
+
+---
+
+### UC-BYR-TKT-02 — Open or reply to a ticket
+
+**Actor:** Buyer  
+**Goal:** Create a ticket (site or buyer–seller with related order/product they own) and reply on the thread.
+
+**Exception:** Cannot see or reply to other buyers’ tickets. Closed tickets read-only unless reopen is allowed.
+
+---
+
 ## 9. Sellers
 
 ### UC-SLR-01 — Manage seller records
@@ -355,7 +437,7 @@ Staff analytics are platform-wide (UC-AN-*). Seller shop analytics are UC-SEL-AN
 **Actor:** Staff with Sellers edit.  
 **Goal:** Take a vendor on or off the marketplace.
 
-**Postcondition:** Disabled seller cannot receive new published listings / new orders (exact storefront behavior is out of this dashboard’s UI scope). **Seller dashboard login is blocked.** Open orders remain visible to staff for fulfillment. Action is audited.
+**Postcondition:** Disabled seller cannot receive new published listings / new orders. **Seller panel login is blocked.** Open orders remain visible to Admin/Support for fulfillment. Action is audited.
 
 ---
 
@@ -368,15 +450,15 @@ Staff analytics are platform-wide (UC-AN-*). Seller shop analytics are UC-SEL-AN
 
 ---
 
-## 9.1 Seller dashboard
+## 9.1 Seller panel
 
-Seller sessions never load the staff shell. Navigation is only Analytics, Tickets from buyers, and Products.
+Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics**, **Products**, **Orders**, and **Tickets**.
 
-### UC-SEL-AUTH-01 — Sign in to seller dashboard
+### UC-SEL-AUTH-01 — Sign in to seller panel
 
 **Actor:** Seller  
-**Goal:** Access the seller dashboard.  
-**Preconditions:** Seller record exists, status is `enabled`, dashboard login is provisioned.
+**Goal:** Access the seller panel.  
+**Preconditions:** Seller record exists, status is `enabled`, portal login is provisioned.
 
 **Main flow**
 
@@ -444,6 +526,42 @@ Seller sessions never load the staff shell. Navigation is only Analytics, Ticket
 **Goal:** Same publish rules as UC-PRD-03 on own products.
 
 **Exception:** If staff archived or removed the product after a report, seller cannot unilaterally republish without staff policy (default **Block**).
+
+---
+
+### UC-SEL-ORD-01 — Browse own orders
+
+**Actor:** Seller  
+**Goal:** Paginated list of orders that include this seller’s line items / splits.
+
+**Exception:** Orders that only belong to other sellers are omitted (same as no match).
+
+---
+
+### UC-SEL-ORD-02 — View own order detail
+
+**Actor:** Seller  
+**Goal:** See buyer shipping snapshot, own line items, status history for own split, linked ticket if any.
+
+**Exception:** Other sellers’ line items, invoices, and transactions are hidden. Buyer PII beyond fulfillment needs is not listed as a buyers-directory page.
+
+---
+
+### UC-SEL-ORD-03 — Advance own fulfillment status
+
+**Actor:** Seller  
+**Goal:** Move **their** split `processing` → `shipping` → `delivered` (same machine as UC-ORD-04).
+
+**Postcondition:** History records `actor_seller_id`. Parent order status is derived from splits (see EC-ORD-01).
+
+---
+
+### UC-SEL-ORD-04 — Cancel own fulfillment
+
+**Actor:** Seller  
+**Goal:** Cancel their unfilled split with a **mandatory reason**. Does not create a refund.
+
+**Exception:** Already `delivered` → **Block**. Multi-seller: canceling one split does not cancel other sellers. Prompt staff for refund if payment was captured.
 
 ---
 
@@ -647,7 +765,7 @@ Seller sessions never load the staff shell. Navigation is only Analytics, Ticket
 2. Staff assigns, replies, and/or updates status.
 3. Thread stores messages with timestamps.
 
-**Exception:** Closed tickets are read-only unless reopened by policy. Buyer–seller tickets are also worked by the seller on the seller dashboard (UC-SEL-TKT-*). Staff may still view and reply.
+**Exception:** Closed tickets are read-only unless reopened by policy. Buyer–seller tickets are also worked on the seller panel (UC-SEL-TKT-*) and opened by the buyer (UC-BYR-TKT-*). Admin/Support may still view and reply.
 
 ---
 
@@ -660,7 +778,7 @@ Seller sessions never load the staff shell. Navigation is only Analytics, Ticket
 
 ## 16. Cross-cutting rules for every use case
 
-1. **Authorization:** Every page and mutating API checks permissions; Superuser bypasses restriction, not audit. Seller sessions are limited to the three seller modules and **must** filter by `seller_id`.
+1. **Authorization:** Every page and API checks permissions. Superuser bypasses restriction, not audit. Seller: analytics/products/orders/tickets + `seller_id`. Buyer: profile/addresses/orders/tickets + `buyer_id`. Support is limited Admin on the same panel.
 2. **Lists:** Filter, sort, pagination; bulk actions only where specified later.
 3. **Detail pages:** Surface related records (order ↔ buyer, seller, invoice, transactions).
 4. **Audit:** Sensitive mutations write an audit record.
@@ -673,6 +791,6 @@ Seller sessions never load the staff shell. Navigation is only Analytics, Ticket
 
 | Phase | Use cases in scope |
 |-------|-------------------|
-| **MVP** | UC-AUTH-*, UC-ADM-*, UC-ORD-*, UC-BYR-*, UC-SLR-*, UC-PRD-*, UC-SEL-AUTH-01, UC-SEL-PRD-*, UC-TKT-01/02 (site support), Superuser UC-TKT-03 for site tickets |
-| **Phase 2** | UC-INV-*, UC-TXN-*, UC-REV-*, UC-QA-*, UC-RPT-*, UC-TKT-* including buyer–seller, UC-SEL-TKT-* |
+| **MVP** | UC-AUTH-*, UC-ADM-*, UC-ORD-*, UC-BYR-01/02, UC-BYR-AUTH-01, UC-BYR-PROF-*, UC-BYR-ORD-*, UC-SLR-*, UC-PRD-*, UC-SEL-AUTH-01, UC-SEL-PRD-*, UC-SEL-ORD-*, UC-TKT-01/02 (site), UC-BYR-TKT-* (site), Superuser UC-TKT-03 |
+| **Phase 2** | UC-INV-*, UC-TXN-*, UC-REV-*, UC-QA-*, UC-RPT-*, UC-TKT-* including buyer–seller, UC-SEL-TKT-*, UC-BYR-TKT-* (buyer–seller) |
 | **Phase 3** | UC-AN-*, UC-SEL-AN-01, UC-MKT-*, UC-CRM-*, UC-BLG-*, UC-GLB-01, advanced export and audit UI (UC-GLB-02, UC-AN-03) |
