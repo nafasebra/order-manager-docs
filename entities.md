@@ -14,6 +14,7 @@ erDiagram
   AdminUser ||--o{ PermissionGrant : has
   AdminUser ||--o{ Ticket : assigned
   AdminUser ||--o{ BlogPost : authors
+  AdminUser ||--o{ WebsitePage : edits
   AdminUser ||--o{ CrmNote : writes
   AdminUser ||--o{ CrmTask : assigned
 
@@ -30,6 +31,7 @@ erDiagram
 
   Seller ||--o{ AuditLog : performs
   Seller ||--o{ SellerDeliveryMethod : offers
+  Seller ||--o{ SellerPaymentWay : accepts
   Seller ||--o{ Product : lists
   Seller ||--o{ OrderLineItem : fulfills
   Seller ||--o{ Invoice : party
@@ -71,7 +73,7 @@ erDiagram
 
 ### AdminUser
 
-Admin-panel account (full Admin or limited Support). Superuser bypasses permission checks but not audit.
+Admin-panel account (full Admin, limited Support, or limited Editor). Superuser bypasses permission checks but not audit.
 
 | Field | Notes |
 |-------|--------|
@@ -90,7 +92,7 @@ Admin-panel account (full Admin or limited Support). Superuser bypasses permissi
 
 ### RoleTemplate
 
-Named permission bundle (e.g. **Admin**, **Support**, “Catalog editor”).
+Named permission bundle (e.g. **Admin**, **Support**, **Editor**).
 
 | Field | Notes |
 |-------|--------|
@@ -107,7 +109,9 @@ Named permission bundle (e.g. **Admin**, **Support**, “Catalog editor”).
 | area | See catalog below |
 | actions | Subset of `view`, `edit`, `create`, `update_status`, `refund`, `moderate`, `respond`, `manage_admins` |
 
-**Permission areas** (requirements §17): `analytics`, `marketing`, `crm`, `orders`, `buyers`, `sellers`, `invoices`, `transactions`, `products`, `reviews`, `qa`, `product_reports`, `blog`, `tickets`, `admin_management`.
+**Permission areas** (requirements §17): `analytics`, `marketing`, `crm`, `orders`, `buyers`, `sellers`, `invoices`, `transactions`, `products`, `reviews`, `qa`, `product_reports`, `website`, `blog`, `tickets`, `admin_management`.
+
+**Editor** template grants `website` + `blog` (`view`, `edit`). **Support** template does not include those unless extra grants.
 
 ### AuditLog
 
@@ -162,7 +166,7 @@ Orders **copy** address fields onto the order at placement so later edits do not
 
 ### Seller
 
-Marketplace vendor. Staff manage the **platform-data** record. The seller **also signs in** to the seller panel (analytics, products, orders, tickets).
+Marketplace vendor. Staff manage the **platform-data** record. The seller **also signs in** to the seller panel (analytics, products, orders, tickets, delivery-method and payment-way settings).
 
 | Field | Notes |
 |-------|--------|
@@ -181,12 +185,35 @@ Marketplace vendor. Staff manage the **platform-data** record. The seller **also
 
 ### SellerDeliveryMethod
 
+Shipping / delivery ways **this seller offers buyers**. Same Settings pattern as `SellerPaymentWay`.
+
 | Field | Notes |
 |-------|--------|
 | seller_id | |
-| code | `standard`, `express`, `pickup`, custom |
-| label | |
-| enabled | |
+| code | `standard`, `express`, `pickup`, or platform-defined |
+| label | Display name |
+| enabled | Offered at checkout when true |
+| instructions | Optional buyer-facing copy (e.g. pickup address, lead time). Plain text only. |
+| sort_order | |
+| created_at, updated_at | |
+
+Unique `(seller_id, code)`. Checkout may only use an enabled method for that seller. Orders copy `code` + `label` (+ instructions used) onto the order as `delivery_method_snapshot`.
+
+### SellerPaymentWay
+
+Payment methods **this seller accepts from buyers**. Not a gateway account. No card PAN/CVV.
+
+| Field | Notes |
+|-------|--------|
+| seller_id | |
+| code | `cod`, `bank_transfer`, `card`, `wallet`, or platform-defined |
+| label | Display name |
+| enabled | Offered at checkout when true |
+| instructions | Optional buyer-facing copy (e.g. bank details). Never store secrets. |
+| sort_order | |
+| created_at, updated_at | |
+
+Unique `(seller_id, code)`. Checkout may only use an enabled way for that seller. Orders copy `code` + `label` (+ instructions used) onto the order as a snapshot.
 
 ### Tag
 
@@ -295,7 +322,8 @@ Recommended for audit of stock adjustments.
 | buyer_id | |
 | status | `processing`, `shipping`, `delivered`, `canceled` |
 | shipping_address_snapshot | JSON copy of address |
-| delivery_method | Code/label at order time |
+| delivery_method_snapshot | Code, label, instructions copy at placement |
+| payment_way_snapshot | Code, label, instructions copy at placement |
 | fulfillment_assignee | Optional workflow assignment |
 | cancel_reason | Required if canceled |
 | currency | Until multi-currency is decided, one default |
@@ -501,6 +529,40 @@ Email/notification tracking: `sent`, `opened`, `clicked` — only when an ESP is
 
 ## 9. Content
 
+### SiteContext
+
+Singleton (or one row per locale later) for public-site identity. Edited on the Admin panel (Website).
+
+| Field | Notes |
+|-------|--------|
+| site_name | Required to publish context |
+| tagline | |
+| logo, favicon | Object-storage refs |
+| contact_email, contact_phone | |
+| social_links | JSON list of {network, url} |
+| default_meta_title, default_meta_description | |
+| homepage_copy | Featured / hero text when storefront exists |
+| footer_link_order | Ordered page ids / types |
+| updated_at, updated_by_admin_id | |
+
+### WebsitePage
+
+Static website page in the public context.
+
+| Field | Notes |
+|-------|--------|
+| id | |
+| type | `about`, `terms`, `privacy`, `faq`, `custom` |
+| title, slug | slug unique |
+| body | Rich text |
+| status | `draft`, `published`, `archived` |
+| seo_title, seo_description | Optional |
+| sort_order | |
+| updated_by_admin_id | |
+| created_at, updated_at | |
+
+Required legal types (`terms`, `privacy`) cannot be hard-deleted.
+
 ### BlogPost
 
 | Field | Notes |
@@ -570,7 +632,7 @@ Seller-panel users persist `author_type = seller`. Buyer-panel users persist `au
 | **Timestamps** | Store UTC; display in configured timezone. |
 | **Money** | Integer minor units (cents) + `currency` code. Never float. |
 | **Soft-delete** | `deleted_at` on Buyer, Seller, Product (and Order if policy allows). Unique emails/usernames: partial unique indexes excluding deleted, or freeze identifiers on anonymize. |
-| **Snapshots** | Order lines, shipping address, coupon discount, invoice lines, blog author name — immutable after issue/placement. |
+| **Snapshots** | Order lines, shipping address, delivery method, payment way, coupon discount, invoice lines, blog author name — immutable after issue/placement. |
 | **Status machines** | Enforce in domain layer; append `*History` or AuditLog. |
 | **Lists** | All collections support filter, sort, page (`limit`/`cursor` or offset). |
 
@@ -587,7 +649,7 @@ Treat these as consistency boundaries:
 | **Product** | Images, variants, stock; publish rules |
 | **Ticket** | Messages; assignment; type-specific seller |
 | **AdminUser** | Grants; cannot remove last superuser |
-| **Buyer / Seller** | Addresses / delivery methods; anonymize; seller login; disable blocks portal |
+| **Buyer / Seller** | Addresses / delivery methods / payment ways; anonymize; seller login; disable blocks portal |
 | **OrderSplit** | Per-seller status; seller panel commands only on matching `seller_id` |
 | **ProductReport** | Resolution action required on approve |
 | **Transaction** | Refundable balance computed from siblings on the same order/payment |
@@ -598,8 +660,8 @@ Treat these as consistency boundaries:
 
 | Phase | Entities to persist |
 |-------|---------------------|
-| **MVP** | AdminUser, PermissionGrant, RoleTemplate (Admin / Support), AuditLog (minimal), Buyer (including login fields), Address, Seller (including login fields), SellerDeliveryMethod, Product, ProductImage, ProductVariant, StockMovement, Order, OrderLineItem, OrderSplit, OrderStatusHistory, Ticket (type `site`), TicketMessage |
+| **MVP** | AdminUser, PermissionGrant, RoleTemplate (Admin / Support / **Editor**), AuditLog (minimal), Buyer (including login fields), Address, Seller (including login fields), SellerDeliveryMethod, SellerPaymentWay, Product, ProductImage, ProductVariant, StockMovement, Order, OrderLineItem, OrderSplit, OrderStatusHistory, Ticket (type `site`), TicketMessage |
 | **Phase 2** | Invoice*, Transaction, Review, Question, Answer, ProductReport, Ticket type `buyer_seller` (seller panel tickets) |
-| **Phase 3** | Campaign, Coupon*, Banner, CrmNote, Tag, CrmTask, BlogPost, BlogComment, richer AuditLog UI, analytics projections (staff and seller-scoped) |
+| **Phase 3** | Campaign, Coupon*, Banner, CrmNote, Tag, CrmTask, SiteContext, WebsitePage, BlogPost, BlogComment, richer AuditLog UI, analytics projections (staff and seller-scoped) |
 
 \*Coupons may be needed earlier if the storefront already discounts; the **Admin panel** CRM/marketing UI is phase 3.

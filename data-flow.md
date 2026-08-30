@@ -16,11 +16,13 @@ flowchart TB
   MP --> BP[Buyer panel]
   AP --> AD[Admin full]
   AP --> SU[Support limited]
+  AP --> ED[Editor website + blog]
   VP --> SE[Seller]
   SE --> A[Analytics]
   SE --> P[Products]
   SE --> O[Orders]
   SE --> T[Tickets]
+  SE --> SET[Settings delivery + payment]
   BP --> PR[Profile]
   BP --> ADDR[Addresses]
   BP --> BO[Orders]
@@ -48,6 +50,7 @@ flowchart LR
 
   Admin((Admin)) --> SUI
   Support((Support)) --> SUI
+  Editor((Editor)) --> SUI
   Seller((Seller)) --> VUI
   Buyer((Buyer)) --> BUI
   SUI --> API
@@ -65,7 +68,7 @@ flowchart LR
   DOM -->|refund capture| PG
 ```
 
-**Rule:** the **Admin panel** is the system of record for staff actions (moderation, permissions, refunds, people directories). The **Seller panel** is the system of record for that shop’s products, fulfillment, and buyer–seller replies. The **Buyer panel** is the system of record for that customer’s profile, addresses, and their ticket/order self-service.
+**Rule:** the **Admin panel** is the system of record for staff actions (moderation, permissions, refunds, people directories). The **Seller panel** is the system of record for that shop’s products, fulfillment, **delivery methods**, **payment ways**, and buyer–seller replies. The **Buyer panel** is the system of record for that customer’s profile, addresses, and their ticket/order self-service.
 
 Seller APIs inject `seller_id`. Buyer APIs inject `buyer_id`.
 
@@ -73,9 +76,9 @@ Seller APIs inject `seller_id`. Buyer APIs inject `buyer_id`.
 
 ## 2. Request path (every portal action)
 
-Staff: authenticate AdminUser → check grants (or superuser) → handler.
+Staff: authenticate AdminUser → check grants (Admin / Support / Editor or superuser) → handler.
 
-Seller: authenticate Seller → `enabled` → analytics / products / orders / tickets → inject `seller_id`.
+Seller: authenticate Seller → `enabled` → analytics / products / orders / tickets / settings → inject `seller_id`.
 
 Buyer: authenticate Buyer → `active` → profile / addresses / orders / tickets → inject `buyer_id`.
 
@@ -133,7 +136,8 @@ sequenceDiagram
   participant TX as Transactions
   participant INV as Invoices
 
-  SF->>DB: Create Order + line snapshots + buyer
+  SF->>DB: Create Order + line snapshots + buyer + delivery_method_snapshot + payment_way_snapshot
+  Note over SF,DB: Method and way must be enabled for that seller (EC-ORD-17, EC-ORD-19)
   opt Payment captured
     SF->>TX: Payment completed
     TX->>DB: Transaction payment
@@ -166,6 +170,10 @@ flowchart TD
 ```
 
 Multi-seller: status changes may apply to an **OrderSplit** (per seller) rather than the parent. Parent status is derived (e.g. all delivered → delivered; any canceled + remainder delivered → policy TBD — recommend parent `canceled` only when all splits canceled).
+
+**Delivery method at checkout:** Storefront lists only `SellerDeliveryMethod` rows with `enabled = true` for each seller in the cart. On place-order, the API validates the chosen `code` is still enabled and pickup vs ship-address rules, then copies `code`, `label`, and the instructions used onto `Order.delivery_method_snapshot`. Later seller edits do not rewrite that snapshot (EC-SLR-19). Combined checkout with no shared enabled method is **Block** or split shipment per policy (EC-SLR-18).
+
+**Payment way at checkout:** Storefront lists only `SellerPaymentWay` rows with `enabled = true` for each seller in the cart. On place-order, the API validates the chosen `code` is still enabled, then copies `code`, `label`, and the instructions used onto `Order.payment_way_snapshot`. Later seller edits do not rewrite that snapshot (EC-SLR-16). Combined checkout with no shared enabled way is **Block** or split payment per policy (EC-SLR-15). Gateway capture (if any) remains out of scope; `card` / `wallet` mean “accept this platform-supported way.”
 
 ---
 
@@ -264,7 +272,7 @@ Refundable balance is computed in the domain from completed payments minus compl
 flowchart LR
   subgraph Writes
     BY[Buyer CRUD / addresses]
-    SL[Seller CRUD / enable]
+    SL[Seller CRUD / enable / delivery + payment]
     NT[Internal notes / tags]
   end
 
@@ -306,6 +314,8 @@ sequenceDiagram
 ```
 
 **Disable seller:** Admin panel writes `seller.status = disabled` → storefront stops new checkouts → **seller session rejected** → existing orders still flow through staff order APIs and remain on the seller panel until disable (then login blocked) → products unpublished or hidden per EC-SLR-01.
+
+**Seller delivery methods and payment ways:** Seller (or staff on the seller people record) PATCH-es enabled methods/ways and instructions. Writes always stamp session/`path` `seller_id` (EC-SLR-08, EC-SLR-09). Payment-way instructions are plain text; PAN/CVV is **Block** (EC-SLR-13). Checkout reads enabled rows only; orders store snapshots (see §3). Payouts stay Admin-only (EC-SLR-06) and are not this setting.
 
 ---
 
@@ -405,7 +415,18 @@ Promote/demote updates `is_superuser` and optionally replaces grants. Demote req
 
 ---
 
-## 11. Blog
+## 11. Website and blog
+
+**Website context:** Editor (or staff with Website edit) PATCH-es `SiteContext` and CRUD `WebsitePage`. Storefront reads published pages + current context. Legal types stay resolvable (EC-WEB-02). Writes audit `updated_by_admin_id`.
+
+```mermaid
+flowchart LR
+  ED[Editor or staff] --> CTX[Site context]
+  ED --> PG[Website page]
+  CTX --> DB[(DB)]
+  PG --> DB
+  DB --> SF[Storefront]
+```
 
 ```mermaid
 flowchart LR
@@ -454,7 +475,7 @@ For phase 1, implement:
 
 1. AuthZ for **Admin, Seller, and Buyer** sessions
 2. Order create + Admin/Seller/Buyer cancel-or-status rules (§3 without auto-refund)
-3. People + catalog; **seller panel** products and orders; **buyer panel** profile, addresses, own orders
+3. People + catalog; **seller panel** products, orders, **delivery-method and payment-way settings**; **buyer panel** profile, addresses, own orders
 4. Site tickets on Admin and Buyer
 5. Audit on staff changes, order status, and seller/buyer mutations
 

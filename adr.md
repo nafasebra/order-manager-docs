@@ -11,12 +11,12 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 **Status:** Accepted  
 **Date:** 2026-08-25
 
-**Context:** The product is a **marketplace**. Operators, vendors, and customers each need a signed-in panel. Support is a limited Admin, not a fourth panel.
+**Context:** The product is a **marketplace**. Operators, vendors, and customers each need a signed-in panel. Support and Editor are limited Admins, not extra panels.
 
 **Decision:**
 
-- **Admin panel:** **Admin** (full, grants) and **Support** (same shell, limited grants: people, tickets, order view). Superuser = unrestricted Admin + staff management. `actor_type = staff`.
-- **Seller panel:** `actor_type = seller`; modules **analytics, products, orders, tickets**; always scoped to `seller_id`.
+- **Admin panel:** **Admin** (full, grants), **Support** (same shell, limited: people, tickets, order view), and **Editor** (same shell, limited: website context + blog). Superuser = unrestricted Admin + staff management. `actor_type = staff`.
+- **Seller panel:** `actor_type = seller`; modules **analytics, products, orders, tickets, settings (delivery methods + payment ways)**; always scoped to `seller_id`.
 - **Buyer panel:** `actor_type = buyer`; modules **profile, addresses, orders, tickets**; always scoped to `buyer_id`.
 - People directories (all buyers/sellers) exist only on the Admin panel.
 - Same modular monolith; three UI shells; actor types must not share a session.
@@ -146,9 +146,9 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 | Phase | In |
 |-------|-----|
-| MVP | Admin panel (Admin / Support), orders, people, products, site tickets; **seller panel (products + orders)**; **buyer panel (profile, addresses, own orders)** |
+| MVP | Admin panel (Admin / Support), orders, people, products, site tickets; **seller panel (products + orders + delivery methods + payment ways)**; **buyer panel (profile, addresses, own orders)** |
 | Phase 2 | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets on **all three panels** |
-| Phase 3 | Analytics (platform-wide **and** seller-scoped), marketing, CRM, blog, advanced exports, audit UI |
+| Phase 3 | Analytics (platform-wide **and** seller-scoped), marketing, CRM, **website context**, blog, **Editor** role UI, advanced exports, audit UI |
 
 **Consequences:** Data model still **reserves** FKs and snapshot fields so phase 2 does not rewrite order history. Do not build marketing/CRM UI in MVP. Seller analytics waits for phase 3 with staff analytics.
 
@@ -254,17 +254,17 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 **Status:** Accepted  
 **Date:** 2026-08-25
 
-**Context:** Seller and Buyer panels must never leak another party’s data. Support is limited Admin on the Admin panel.
+**Context:** Seller and Buyer panels must never leak another party’s data. Support and Editor are limited Admin roles on the Admin panel.
 
 **Decision:**
 
 - Session stores exactly one of: `actor_type=staff` + `admin_id` | `seller` + `seller_id` | `buyer` + `buyer_id`.
-- Seller module set is fixed: analytics, products, orders (own splits), tickets (`buyer_seller`).
+- Seller module set is fixed: analytics, products, orders (own splits), tickets (`buyer_seller`), **settings (delivery methods + payment ways)**.
 - Buyer module set is fixed: profile, addresses, orders (own), tickets (requester).
 - Every seller/buyer list/detail/mutation **injects** the session id. Mismatched ids → 404/403.
 - Disable seller / suspend or anonymize buyer invalidates that panel’s sessions.
 - Refunds, invoices, and people **directories** are Admin-panel only.
 
-**Consequences:** Shared tables rely on query filters and tests. Support still uses Admin-panel grants, not a fourth shell.
+**Consequences:** Shared tables rely on query filters and tests. Support and Editor still use Admin-panel grants, not extra shells.
 
 ---

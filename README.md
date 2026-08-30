@@ -4,11 +4,11 @@ Three **panels** share one marketplace:
 
 | Panel | Who | Access |
 |-------|-----|--------|
-| **Admin** | Admin (full) and **Support** (limited admin) | Whole marketplace, as granted |
-| **Seller** | Vendor | Own shop: analytics, products, orders, tickets |
+| **Admin** | Admin (full), **Support** (limited), **Editor** (website + blog) | Whole marketplace, as granted |
+| **Seller** | Vendor | Own shop: analytics, products, orders, tickets, **delivery methods**, **payment ways** |
 | **Buyer** | Customer | Own account: profile, addresses, orders, tickets |
 
-Support is **not** a fourth panel. It is the same Admin panel with a restricted role.
+Support and **Editor** are **not** extra panels. They are the same Admin panel with restricted roles. Editor manages website context and blog posts.
 
 ## Docs
 
@@ -21,5 +21,3 @@ Support is **not** a fourth panel. It is the same Admin panel with a restricted 
 | [data-flow.md](./data-flow.md) | Runtime flows |
 | [adr.md](./adr.md) | Architecture decisions |
 | [system-design.md](./system-design.md) | Technical architecture |
-| [v1-page-architecture.md](./v1-page-architecture.md) | V1 routes and pages |
-| [post-v1-roadmap.md](./post-v1-roadmap.md) | Later phases |

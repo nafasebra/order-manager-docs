@@ -1,6 +1,6 @@
 # Use Cases
 
-Derived from [requirements.md](./requirements.md). The marketplace has **three panels**: **Admin** (full Admin or limited Support), **Seller**, and **Buyer**.
+Derived from [requirements.md](./requirements.md). The marketplace has **three panels**: **Admin** (full Admin, limited Support, or limited **Editor**), **Seller**, and **Buyer**.
 
 Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data-flow.md](./data-flow.md)
 
@@ -12,11 +12,12 @@ Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data
 |-------|--------|--------|
 | **Admin** | Admin | Marketplace operator. Grants per requirements §17. Superuser = full Admin panel + staff management. |
 | **Support** | Admin (limited) | Same Admin panel. Typical: people + tickets + order view. Not a fourth panel. |
-| **Seller** | Seller | **Analytics, products, orders, tickets** for `seller_id` only. |
+| **Editor** | Admin (limited) | Same Admin panel. Typical: **website context** + **blog**. Not a fourth panel. |
+| **Seller** | Seller | **Analytics, products, orders, tickets, settings (delivery methods + payment ways)** for `seller_id` only. |
 | **Buyer** | Buyer | **Profile, addresses, orders, tickets** for `buyer_id` only. |
 | **System** | — | Jobs, webhooks, session expiry. |
 
-**Staff** means Admin or Support. **Seller** queries always filter `seller_id`. **Buyer** queries always filter `buyer_id`.
+**Staff** means Admin, Support, or Editor. **Seller** queries always filter `seller_id`. **Buyer** queries always filter `buyer_id`.
 
 ---
 
@@ -56,8 +57,19 @@ Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data
 | UC-BYR-TKT-02 | Open or reply to a ticket | Buyer | Buyer tickets |
 | UC-SLR-01 | Manage seller records | Staff | Sellers |
 | UC-SLR-02 | Enable or disable seller | Staff | Sellers |
-| UC-SLR-03 | Configure seller delivery and support | Staff | Sellers |
+| UC-SLR-03 | Configure seller delivery, payment ways, and support | Staff | Sellers |
 | UC-SEL-AUTH-01 | Sign in to seller panel | Seller | Seller auth |
+| UC-SEL-AN-01 | View shop analytics | Seller | Seller analytics |
+| UC-SEL-TKT-01 | Browse tickets from buyers | Seller | Seller tickets |
+| UC-SEL-TKT-02 | Reply to a buyer ticket | Seller | Seller tickets |
+| UC-SEL-PRD-01 | Manage own products | Seller | Seller products |
+| UC-SEL-PRD-02 | Manage own images, variants, and stock | Seller | Seller products |
+| UC-SEL-PRD-03 | Publish or unpublish own product | Seller | Seller products |
+| UC-SEL-ORD-01 | Browse own orders | Seller | Seller orders |
+| UC-SEL-ORD-02 | View own order detail | Seller | Seller orders |
+| UC-SEL-ORD-03 | Advance own fulfillment status | Seller | Seller orders |
+| UC-SEL-ORD-04 | Cancel own fulfillment | Seller | Seller orders |
+| UC-SEL-SET-01 | Manage shop settings including delivery methods and payment ways | Seller | Seller settings |
 | UC-SEL-AN-01 | View shop analytics | Seller | Seller analytics |
 | UC-SEL-TKT-01 | Browse tickets from buyers | Seller | Seller tickets |
 | UC-SEL-TKT-02 | Reply to a buyer ticket | Seller | Seller tickets |
@@ -82,6 +94,8 @@ Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data
 | UC-QA-02 | Post official answer | Staff | Q&A |
 | UC-RPT-01 | Triage product reports | Staff | Product reports |
 | UC-RPT-02 | Resolve approved report | Staff | Product reports |
+| UC-WEB-01 | Manage website context | Staff | Website |
+| UC-WEB-02 | Manage website pages | Staff | Website |
 | UC-BLG-01 | Manage blog posts | Staff | Blog |
 | UC-BLG-02 | Moderate blog comments | Staff | Blog |
 | UC-ADM-01 | Manage admin accounts | Superuser | Admins |
@@ -103,16 +117,16 @@ Related: [edge-case.md](./edge-case.md) · [entities.md](./entities.md) · [data
 
 **Main flow**
 
-1. Admin or Support opens Admin login and submits credentials.
+1. Admin, Support, or Editor opens Admin login and submits credentials.
 2. System authenticates as AdminUser (not seller or buyer).
-3. System creates a staff session and loads grants (Admin, Support, custom, or superuser).
-4. System redirects to the Admin overview (or last allowed page).
+3. System creates a staff session and loads grants (Admin, Support, Editor, custom, or superuser).
+4. System redirects to the Admin overview (or last allowed page). Editor typically lands on Website or Blog.
 
 **Alternate / exception**
 
 - Invalid credentials → generic failure.
 - Account `suspended` → access denied.
-- Superuser → full Admin map; Admin / Support → granted modules only.
+- Superuser → full Admin map; Admin / Support / Editor → granted modules only.
 - Seller or buyer credentials on Admin login → denied.
 
 **Postcondition:** Authenticated session; subsequent requests are permission-checked.
@@ -279,7 +293,7 @@ Staff analytics are platform-wide (UC-AN-*). Seller shop analytics are UC-SEL-AN
 **Actor:** Staff with Orders view.  
 **Goal:** See full order context.
 
-**Shown:** order ID, timestamps, buyer, seller(s) per line or split order, line items (product, qty, unit price, specifications), shipping address, delivery method, status history (actor + time), linked invoice and transactions.
+**Shown:** order ID, timestamps, buyer, seller(s) per line or split order, line items (product, qty, unit price, specifications), shipping address, **delivery method** (snapshot), **payment way** (snapshot), status history (actor + time), linked invoice and transactions.
 
 ---
 
@@ -392,7 +406,7 @@ Staff analytics are platform-wide (UC-AN-*). Seller shop analytics are UC-SEL-AN
 ### UC-BYR-ORD-02 — View own order
 
 **Actor:** Buyer  
-**Goal:** See line items, status history, shipping snapshot, related tickets.
+**Goal:** See line items, status history, shipping snapshot, **delivery-method and payment-way snapshots**, related tickets.
 
 **Exception:** Other buyers’ orders → 403/404. Invoices/transactions as displayed snapshots only if issued to this buyer (phase 2); no refund command.
 
@@ -441,18 +455,20 @@ Staff analytics are platform-wide (UC-AN-*). Seller shop analytics are UC-SEL-AN
 
 ---
 
-### UC-SLR-03 — Configure seller delivery and support
+### UC-SLR-03 — Configure seller delivery, payment ways, and support
 
 **Actor:** Staff with Sellers edit.  
-**Goal:** Set delivery methods (standard, express, pickup, …) and buyer-support channel settings.
+**Goal:** Set **delivery methods** (shipping ways), **payment ways** (which methods buyers may use), and buyer-support channel settings.
 
-**Related:** Staff can open orders and tickets that involve this seller from the seller profile.
+Staff uses the same catalog and validation as UC-SEL-SET-01 (at least one enabled delivery method and one payment way to enable/publish; no PAN/CVV in payment instructions).
+
+**Related:** Staff can open orders and tickets that involve this seller from the seller profile. Delivery-method and payment-way edits do not rewrite historical order snapshots.
 
 ---
 
 ## 9.1 Seller panel
 
-Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics**, **Products**, **Orders**, and **Tickets**.
+Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics**, **Products**, **Orders**, **Tickets**, and **Settings**.
 
 ### UC-SEL-AUTH-01 — Sign in to seller panel
 
@@ -541,7 +557,7 @@ Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics*
 ### UC-SEL-ORD-02 — View own order detail
 
 **Actor:** Seller  
-**Goal:** See buyer shipping snapshot, own line items, status history for own split, linked ticket if any.
+**Goal:** See buyer shipping snapshot, **delivery-method and payment-way snapshots**, own line items, status history for own split, linked ticket if any.
 
 **Exception:** Other sellers’ line items, invoices, and transactions are hidden. Buyer PII beyond fulfillment needs is not listed as a buyers-directory page.
 
@@ -562,6 +578,23 @@ Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics*
 **Goal:** Cancel their unfilled split with a **mandatory reason**. Does not create a refund.
 
 **Exception:** Already `delivered` → **Block**. Multi-seller: canceling one split does not cancel other sellers. Prompt staff for refund if payment was captured.
+
+---
+
+### UC-SEL-SET-01 — Manage shop settings including delivery methods and payment ways
+
+**Actor:** Seller  
+**Goal:** Edit own shop profile, **delivery methods** (shipping ways), **payment ways**, and support-channel settings.
+
+**Main flow**
+
+1. Seller opens Settings.
+2. Seller enables/disables **delivery methods** from the platform catalog (standard, express, pickup, …). Optional instructions (pickup address, lead time).
+3. Seller enables/disables **payment ways** from the platform catalog (COD, bank transfer, card, wallet, …).
+4. For payment ways that need copy (e.g. bank transfer), seller enters **instructions** (account holder, IBAN/reference). No card PAN/CVV.
+5. Save is scoped to `seller_id`. Audit records the change.
+
+**Exception:** Zero enabled delivery methods → **Block** enabling the shop / publishing products (EC-SLR-04). Zero enabled payment ways → same (EC-SLR-12). Disabling a method or way does not change existing order snapshots. Unknown/platform-disabled codes → **Block**. Last enabled delivery method or payment way cannot be turned off without another (EC-SLR-14, EC-SLR-17).
 
 ---
 
@@ -696,18 +729,38 @@ Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics*
 
 ---
 
-## 13. Blog
+## 13. Website and blog
+
+Typical actor: **Editor** (or any staff with Website / Blog grants). Superuser and Admin may also hold these grants.
+
+### UC-WEB-01 — Manage website context
+
+**Actor:** Staff with Website edit.  
+**Goal:** Edit site identity (name, tagline, logo, favicon), contact and social links, default SEO, homepage featured copy, and footer / legal-link order.
+
+**Exception:** Empty required identity fields (site name) → **Block** publish of context to the storefront. Logo/favicon must be allowed image types.
+
+---
+
+### UC-WEB-02 — Manage website pages
+
+**Actor:** Staff with Website edit.  
+**Goal:** CRUD pages (`about`, `terms`, `privacy`, `faq`, `custom`): title, unique slug, body, status, SEO override, sort order. Publish / unpublish.
+
+**Exception:** Duplicate slug → **Block** (EC-WEB-01). Hard-delete of required legal types (`terms`, `privacy`) → **Block**; archive or unpublish instead (EC-WEB-02).
+
+---
 
 ### UC-BLG-01 — Manage blog posts
 
-**Actor:** Staff with Blog edit.  
+**Actor:** Staff with Blog edit (typically Editor).  
 **Goal:** CRUD posts (title, slug, rich body, featured image, author admin, publish date, `draft` / `published` / `archived`, optional categories/tags). Schedule or publish immediately.
 
 ---
 
 ### UC-BLG-02 — Moderate blog comments
 
-**Actor:** Staff with Blog edit.  
+**Actor:** Staff with Blog edit (typically Editor).  
 **Goal:** Per-post comment list: approve, hide, delete, mark spam.
 
 ---
@@ -717,7 +770,7 @@ Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics*
 ### UC-ADM-01 — Manage admin accounts
 
 **Actor:** Superuser.  
-**Goal:** List, create, edit, suspend staff. Fields: name, email, username, role template or custom permissions, `active` / `suspended`, last login.
+**Goal:** List, create, edit, suspend staff. Fields: name, email, username, role template (`admin`, `support`, `editor`, or custom) or custom permissions, `active` / `suspended`, last login.
 
 **Exception:** Superuser cannot leave the system with zero active superusers (see edge cases).
 
@@ -726,7 +779,7 @@ Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics*
 ### UC-ADM-02 — Assign permissions
 
 **Actor:** Superuser.  
-**Goal:** Grant or revoke permission areas (Analytics, Marketing, CRM, Orders, Buyers, Sellers, Invoices, Transactions, Products/Reviews/Q&A/Reports, Blog, Tickets, Admin management).
+**Goal:** Grant or revoke permission areas (Analytics, Marketing, CRM, Orders, Buyers, Sellers, Invoices, Transactions, Products/Reviews/Q&A/Reports, Website, Blog, Tickets, Admin management). Assigning the **Editor** template applies Website + Blog.
 
 **Postcondition:** Next authorized request uses the new set. In-flight sessions should be re-evaluated (see ADR).
 
@@ -778,7 +831,7 @@ Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics*
 
 ## 16. Cross-cutting rules for every use case
 
-1. **Authorization:** Every page and API checks permissions. Superuser bypasses restriction, not audit. Seller: analytics/products/orders/tickets + `seller_id`. Buyer: profile/addresses/orders/tickets + `buyer_id`. Support is limited Admin on the same panel.
+1. **Authorization:** Every page and API checks permissions. Superuser bypasses restriction, not audit. Seller: analytics/products/orders/tickets/settings + `seller_id`. Buyer: profile/addresses/orders/tickets + `buyer_id`. Support and Editor are limited Admin roles on the same panel.
 2. **Lists:** Filter, sort, pagination; bulk actions only where specified later.
 3. **Detail pages:** Surface related records (order ↔ buyer, seller, invoice, transactions).
 4. **Audit:** Sensitive mutations write an audit record.
@@ -791,6 +844,6 @@ Seller sessions never load the Admin or Buyer panels. Navigation is **Analytics*
 
 | Phase | Use cases in scope |
 |-------|-------------------|
-| **MVP** | UC-AUTH-*, UC-ADM-*, UC-ORD-*, UC-BYR-01/02, UC-BYR-AUTH-01, UC-BYR-PROF-*, UC-BYR-ORD-*, UC-SLR-*, UC-PRD-*, UC-SEL-AUTH-01, UC-SEL-PRD-*, UC-SEL-ORD-*, UC-TKT-01/02 (site), UC-BYR-TKT-* (site), Superuser UC-TKT-03 |
+| **MVP** | UC-AUTH-*, UC-ADM-*, UC-ORD-*, UC-BYR-01/02, UC-BYR-AUTH-01, UC-BYR-PROF-*, UC-BYR-ORD-*, UC-SLR-*, UC-PRD-*, UC-SEL-AUTH-01, UC-SEL-PRD-*, UC-SEL-ORD-*, UC-SEL-SET-01, UC-TKT-01/02 (site), UC-BYR-TKT-* (site), Superuser UC-TKT-03 |
 | **Phase 2** | UC-INV-*, UC-TXN-*, UC-REV-*, UC-QA-*, UC-RPT-*, UC-TKT-* including buyer–seller, UC-SEL-TKT-*, UC-BYR-TKT-* (buyer–seller) |
-| **Phase 3** | UC-AN-*, UC-SEL-AN-01, UC-MKT-*, UC-CRM-*, UC-BLG-*, UC-GLB-01, advanced export and audit UI (UC-GLB-02, UC-AN-03) |
+| **Phase 3** | UC-AN-*, UC-SEL-AN-01, UC-MKT-*, UC-CRM-*, UC-WEB-*, UC-BLG-*, UC-GLB-01, advanced export and audit UI (UC-GLB-02, UC-AN-03) |

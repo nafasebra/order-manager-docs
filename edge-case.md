@@ -25,7 +25,7 @@ Legend: **Block** = refuse the action · **Allow + audit** = permit with reason 
 | EC-AUTH-11 | Disabled seller / suspended buyer still has a session | Next request **Block**. Invalidate on disable/suspend. |
 | EC-AUTH-12 | Seller or buyer opens Admin URLs (or another party’s records) | **403/404.** No data leakage. |
 | EC-AUTH-13 | Panel login never provisioned | **Block.** Admin/Support must provision seller/buyer login. |
-| EC-AUTH-14 | Support opens Admin-only routes (marketing, refunds, admin management) | **403** unless that action is granted. Same Admin panel, limited grants. |
+| EC-AUTH-14 | Support or Editor opens routes outside their template (marketing, refunds, admin management; Editor also commerce/people) | **403** unless that action is granted. Same Admin panel, limited grants. |
 | EC-AUTH-15 | Buyer query without `buyer_id` scope | API **must** inject session `buyer_id`. |
 
 ---
@@ -50,7 +50,8 @@ Legend: **Block** = refuse the action · **Allow + audit** = permit with reason 
 | EC-ORD-14 | Order with zero line items or qty ≤ 0 | **Block** create/update. |
 | EC-ORD-15 | Hard-delete order | **Block** for normal admins. Soft-delete only if policy allows; Superuser still audited. |
 | EC-ORD-16 | Missing mandatory cancel reason | **Block.** |
-| EC-ORD-17 | Delivery method not offered by the seller | **Block** or warn on update. Pickup vs ship address mismatch (pickup but full street address required) — validate. |
+| EC-ORD-17 | Delivery method not enabled for the seller at placement | **Block** create. Pickup vs ship-address mismatch (pickup but full street address required) — **Block**. Later staff edits of method: **Block** or warn if the seller no longer offers it. |
+| EC-ORD-19 | Payment way not enabled for the seller at placement | **Block** create. |
 | EC-ORD-18 | Timezone / “today” filters around midnight | All list filters use a single configured timezone (NFR: configurable date formatting). Document which zone analytics and order lists share. |
 
 ---
@@ -77,7 +78,15 @@ Legend: **Block** = refuse the action · **Allow + audit** = permit with reason 
 | EC-SLR-01 | Disable seller with `published` products | Auto-unpublish or leave published but not purchasable — **must pick one**. **Seller panel login is blocked.** |
 | EC-SLR-02 | Disable seller with open orders | **Allow.** Open orders stay in the pipeline for **staff**; new orders blocked. Seller cannot sign in. |
 | EC-SLR-03 | Delete seller with historical orders | Soft-delete. Orders keep seller snapshot / FK to tombstone. Seller login revoked. |
-| EC-SLR-04 | No delivery methods configured | **Block** publish of that seller’s products or warn on seller save. |
+| EC-SLR-04 | No **delivery methods** enabled | **Block** enabling the shop / publishing products until at least one method is enabled. Checkout cannot place an order for that seller. |
+| EC-SLR-17 | Disable the last enabled delivery method | **Block** or require another method first. Existing orders keep `delivery_method_snapshot`. |
+| EC-SLR-18 | Multi-seller checkout when sellers share no common enabled delivery method | **Block** combined checkout, or split shipment per seller (policy). Do not silently pick a method the seller does not offer. |
+| EC-SLR-19 | Delivery method edited after orders exist | **Allow.** New checkouts use the new config. Historical orders keep `delivery_method_snapshot`. |
+| EC-SLR-12 | No **payment ways** enabled | **Block** enabling the shop / publishing products until at least one way is enabled. Checkout cannot place an order for that seller. |
+| EC-SLR-13 | Seller stores card PAN/CVV in payment-way instructions | **Block.** Instructions are plain text only (bank name, IBAN, reference). Card data never stored. |
+| EC-SLR-14 | Disable the last enabled payment way | **Block** or require another way first. Existing orders keep their snapshot. |
+| EC-SLR-15 | Multi-seller checkout when sellers share no common enabled payment way | **Block** combined checkout, or split payment per seller (policy). Do not silently pick a way the seller does not offer. |
+| EC-SLR-16 | Payment way edited after orders exist | **Allow.** New checkouts use the new config. Historical orders keep `payment_way_snapshot`. |
 | EC-SLR-05 | Map location invalid / empty free-text address | Allow incomplete workplace address in draft; require it before “enabled.” |
 | EC-SLR-06 | Payout summary while seller has failed payouts | Show failed payouts in **staff** transaction list; do not hide negative or failed rows. Seller panel does not include payouts. |
 | EC-SLR-07 | Re-enable seller | Does not auto-republish products. Staff or seller republishes explicitly. Portal login works again if credentials still exist. |
@@ -177,10 +186,15 @@ Legend: **Block** = refuse the action · **Allow + audit** = permit with reason 
 
 ---
 
-## 10. Blog
+## 10. Website and blog
 
 | ID | Scenario | Expected handling |
 |----|----------|-------------------|
+| EC-WEB-01 | Duplicate website page slug | **Block.** Unique slug. |
+| EC-WEB-02 | Hard-delete `terms` or `privacy` page | **Block.** Archive or unpublish. Storefront must still resolve a legal URL or show a configured fallback. |
+| EC-WEB-03 | Publish site context with empty site name | **Block.** |
+| EC-WEB-04 | Editor edits another admin’s draft page or post | **Allow** (shop-wide content, not personal). Audit `updated_by`. |
+| EC-WEB-05 | Unpublish the only published homepage copy / required page while storefront is live | **Allow + warn**, or **Block** if policy requires always-on legal pages. Default: legal types stay published. |
 | EC-BLG-01 | Duplicate slug | **Block.** Unique slug. |
 | EC-BLG-02 | Schedule publish in the past | Treat as publish immediately **or** Block. Prefer publish immediately with warning. |
 | EC-BLG-03 | Author admin later deleted/suspended | Post remains; author shown as historical name snapshot. |

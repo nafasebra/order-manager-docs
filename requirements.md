@@ -13,15 +13,15 @@ One marketplace, **three panels**:
          │               │               │
     ┌────┴────┐          │               ├── Profile
     │         │          ├── Analytics   ├── Addresses
-  ADMIN    SUPPORT       ├── Products    ├── Orders
-  (full)  (limited)      ├── Orders      └── Tickets
+  ADMIN  SUPPORT EDITOR  ├── Products    ├── Orders
+  (full) (ops) (content) ├── Orders      └── Tickets
                          └── Tickets
 ```
 
 **Goals**
 
-- **Admin panel:** full operators run the marketplace. **Support** uses the same panel with a **limited admin** role (tickets + people + order view; no admin management, no refunds unless granted).
-- **Seller panel:** each vendor runs their shop (analytics, products, orders, tickets), isolated by `seller_id`.
+- **Admin panel:** full operators run the marketplace. **Support** is a limited ops role (tickets + people + order view). **Editor** is a limited content role (**website context** + blog posts). Neither is a fourth panel; no admin management or refunds unless granted.
+- **Seller panel:** each vendor runs their shop (analytics, products, orders, tickets, **delivery methods**, **payment ways**), isolated by `seller_id`.
 - **Buyer panel:** each customer manages their account (profile, addresses, own orders, own tickets), isolated by `buyer_id`.
 - Superuser is a full Admin with every Admin-panel module plus staff management.
 
@@ -37,15 +37,16 @@ One marketplace, **three panels**:
 | Role | Panel | Description |
 |------|--------|-------------|
 | **Admin** | Admin | Operates the marketplace (catalog, commerce, content, people, settings) within assigned permissions. Superuser = unrestricted Admin + staff management. |
-| **Support** | Admin (limited) | Same Admin panel. Typical grants: Buyers, Sellers, Tickets, Orders **view**. Cannot manage staff, issue refunds, or edit marketing/blog unless extra grants are added. |
-| **Seller** | Seller | Vendor. Modules: **analytics**, **products**, **orders**, **tickets** — own shop only. Also a people record Admin/Support can manage. |
+| **Support** | Admin (limited) | Same Admin panel. Typical grants: Buyers, Sellers, Tickets, Orders **view**. Cannot manage staff, issue refunds, or edit marketing/website/blog unless extra grants are added. |
+| **Editor** | Admin (limited) | Same Admin panel. Typical grants: **Website context** and **Blog** (view / edit). Manages public-site copy, pages, posts, and comments. No commerce, people directories, refunds, or staff management unless extra grants. |
+| **Seller** | Seller | Vendor. Modules: **analytics**, **products**, **orders**, **tickets**, **settings** (delivery methods, payment ways) — own shop only. Also a people record Admin/Support can manage. |
 | **Buyer** | Buyer | Customer. Modules: **profile**, **addresses**, **orders**, **tickets** — own account only. Also a people record Admin/Support can manage. |
-z
+
 ---
 
 ## 3. Global Panel Requirements
 
-Three shells: **Admin panel** (full Admin or limited Support), **Seller panel**, **Buyer panel**.
+Three shells: **Admin panel** (full Admin, limited Support, or limited **Editor**), **Seller panel**, **Buyer panel**.
 
 - Responsive layout usable on desktop (primary) and tablet.
 - Admin: global search across orders, buyers, sellers, products, and tickets (stretch). Seller: own products, orders, tickets. Buyer: own orders and tickets.
@@ -141,7 +142,8 @@ Three shells: **Admin panel** (full Admin or limited Support), **Seller panel**,
 - Seller(s) per line item or split orders
 - Line items: product, quantity, unit price, specifications (e.g. color)
 - Shipping address
-- Delivery method
+- Delivery method (snapshot of how this order ships / is picked up)
+- Payment way (snapshot of how the buyer paid / will pay this order)
 - Status history with actor and timestamp
 
 **Actions (Admin / Support as permitted)**
@@ -216,7 +218,8 @@ Buyers sign in to a **separate panel** (session bound to `buyer_id`). They are n
 - Business / display name
 - Contact information (linked to buyer-style profile where applicable)
 - Workplace address (free text and/or map location)
-- Delivery methods offered (e.g. standard, express, pickup)
+- **Delivery methods** offered (how this seller ships / offers pickup: e.g. standard, express, pickup)
+- **Payment ways** offered (how buyers can pay this seller: e.g. cash on delivery, bank transfer, card via platform, wallet)
 - Buyer support channel settings (how buyers reach this seller)
 - Products listed (linked)
 - Payout / transaction summary (linked)
@@ -225,7 +228,7 @@ Buyers sign in to a **separate panel** (session bound to `buyer_id`). They are n
 
 - CRUD seller records
 - Enable / disable seller account (disabled sellers cannot sign in to the seller panel)
-- Edit delivery methods and support settings
+- Edit delivery methods, **payment ways**, and support settings
 - View orders and tickets involving this seller
 - Provision or reset seller panel login
 
@@ -239,6 +242,35 @@ Sellers sign in to the **seller panel** (session bound to `seller_id`). They are
 | **Products** | CRUD their own catalog: images, variants, stock, publish / unpublish. Cannot change seller association or edit another seller’s products. |
 | **Orders** | List/detail for orders that include this seller; advance or cancel **their** fulfillment; see buyer/shipping snapshot on those orders. |
 | **Tickets** | List, open, reply, and update status on **buyer ↔ seller** tickets for their shop. No site-support tickets and no other sellers’ tickets. |
+| **Settings** | Shop profile, **delivery methods** (shipping ways), **payment ways**, and buyer-support channels. |
+
+**Delivery methods (seller settings)**
+
+Sellers configure **which shipping / delivery ways buyers may choose** at checkout for this shop. Same Settings panel as payment ways.
+
+| Field | Notes |
+|-------|--------|
+| Code | e.g. `standard`, `express`, `pickup`, custom |
+| Label | Display name |
+| Enabled | Offered to buyers when true |
+| Instructions | Optional (e.g. pickup address, lead time, packing notes). Plain text only. |
+| Sort order | Checkout display order |
+
+Platform may limit which codes exist. Historical orders keep a **delivery-method snapshot**. Pickup vs ship-address rules apply at checkout (EC-ORD-17).
+
+**Payment ways (seller settings)**
+
+Sellers configure **which payment ways buyers may use** at checkout for this shop. This is settings, not a payment gateway.
+
+| Field | Notes |
+|-------|--------|
+| Code | e.g. `cod`, `bank_transfer`, `card`, `wallet`, custom |
+| Label | Display name |
+| Enabled | Offered to buyers when true |
+| Instructions | Optional (e.g. bank name, account holder, IBAN/reference). **No card numbers or CVV.** |
+| Sort order | Checkout display order |
+
+Platform may limit which codes exist (catalog of allowed ways). Enabling `card` / `wallet` means “accept this platform-supported way”; gateway keys stay with the platform (requirements §1 out of scope). Historical orders keep a **payment-way snapshot**.
 
 **Seller panel does not include:** marketing, CRM, invoices/transactions/refunds, buyers/sellers directories, reviews/Q&A/report moderation, blog, or admin management.
 
@@ -379,9 +411,45 @@ Sellers sign in to the **seller panel** (session bound to `seller_id`). They are
 
 ---
 
-## 16. Blog
+## 16. Website and blog
 
-**Purpose:** Content management for blog posts and reader comments.
+Public-site content lives on the **Admin panel**. Sellers and buyers do not edit it.
+
+### 16.1 Website context
+
+**Purpose:** Manage the **website context** shown on the public storefront: site identity, default SEO, contact, and static pages (About, Terms, Privacy, FAQ, custom).
+
+**Site context fields**
+
+- Site name, tagline
+- Logo and favicon
+- Contact email / phone, social links
+- Default meta title and description
+- Homepage featured copy / hero (when the storefront exists)
+- Footer / legal-link order
+
+**Website pages**
+
+| Field | Notes |
+|-------|--------|
+| Code / type | `about`, `terms`, `privacy`, `faq`, or `custom` |
+| Title, slug | Slug unique |
+| Body | Rich text |
+| Status | draft, published, archived |
+| SEO title / description | Optional override of site defaults |
+| Sort order | Nav / footer order |
+
+**Actions**
+
+- Edit site context (identity, contact, default SEO, homepage copy)
+- CRUD website pages; publish / unpublish
+- Required legal types (`terms`, `privacy`) cannot be hard-deleted
+
+This is **site copy**, not catalog, marketing campaigns, or seller shop settings.
+
+### 16.2 Blog
+
+**Purpose:** Posts and reader comments on the website.
 
 **Post fields**
 
@@ -405,19 +473,20 @@ Sellers sign in to the **seller panel** (session bound to `seller_id`). They are
 
 ## 17. Admins
 
-**Purpose:** Admin-panel staff accounts. **Support is a limited Admin** on this same panel (role template), not a separate product.
+**Purpose:** Admin-panel staff accounts. **Support** and **Editor** are limited roles on this same panel (role templates), not separate products.
 
 **Role templates (Admin panel)**
 
 | Template | Typical access |
 |----------|----------------|
 | **Admin** | Commerce, catalog, content, marketing, CRM, analytics — as granted. Superuser = all Admin-panel modules + admin management. |
-| **Support** | **Limited admin:** Buyers, Sellers, Tickets, Orders **view**. No staff management, no refunds unless extra grants. |
+| **Support** | **Limited ops:** Buyers, Sellers, Tickets, Orders **view**. No staff management, no refunds, no website/blog unless extra grants. |
+| **Editor** | **Limited content:** Website context + Blog (view / edit, including comment moderation). No commerce, people directories, refunds, or staff management unless extra grants. |
 
 **Fields**
 
 - Name, email, username
-- Role template (`admin`, `support`, or custom) or custom permission set
+- Role template (`admin`, `support`, `editor`, or custom) or custom permission set
 - Status (active, suspended)
 - Last login
 
@@ -430,6 +499,7 @@ Sellers sign in to the **seller panel** (session bound to `seller_id`). They are
 - Buyers, Sellers (view / edit)
 - Invoices, Transactions (view / create / refund)
 - Products, Reviews, Q&A, Reports (view / moderate)
+- Website (view / edit) — site context and pages
 - Blog (view / edit)
 - Tickets (view / respond)
 - Admin management (superuser only)
@@ -476,7 +546,7 @@ The superuser (elevated **Admin** on the Admin panel) must:
 - Access **every page and module** in the **Admin panel** without permission restrictions.
 - Perform **full CRUD** on orders and related operational data (within business rules above).
 - View **all tickets** — both site support and buyer/seller support — with global filters.
-- Open the **admin management** page: list all Admin-panel users (including Support), create/edit/suspend, assign permissions, promote or demote roles.
+- Open the **admin management** page: list all Admin-panel users (including Support and Editor), create/edit/suspend, assign permissions, promote or demote roles.
 - Superuser does **not** use the seller or buyer panels to operate those shops/accounts; those stay on their own panels.
 
 ---
@@ -499,21 +569,22 @@ The superuser (elevated **Admin** on the Admin panel) must:
 
 ```
 MARKETPLACE
-├── Admin panel          ← Admin (full) | Support (limited admin)
+├── Admin panel          ← Admin (full) | Support (ops) | Editor (content)
 │   ├── Analytics
 │   ├── Marketing
 │   ├── CRM
 │   ├── Commerce (Orders, Invoices, Transactions)
 │   ├── People (Buyers, Sellers)
 │   ├── Catalog (Products, Reviews, Q&A, Reports)
-│   ├── Content (Blog)
+│   ├── Content (Website context, Blog)
 │   ├── Tickets
 │   └── Settings → Admins (superuser)
 ├── Seller panel         ← Seller (own shop)
 │   ├── Analytics
 │   ├── Products
 │   ├── Orders
-│   └── Tickets
+│   ├── Tickets
+│   └── Settings (delivery methods, payment ways)
 └── Buyer panel          ← Buyer (own account)
     ├── Profile
     ├── Addresses
@@ -536,6 +607,6 @@ MARKETPLACE
 
 | Phase | Scope |
 |-------|--------|
-| **MVP** | Admin panel (Admin / Support), orders, people, products; **seller panel** (products + orders); **buyer panel** (profile, addresses, own orders); site tickets |
+| **MVP** | Admin panel (Admin / Support), orders, people, products; **seller panel** (products + orders + **delivery methods** + **payment ways**); **buyer panel** (profile, addresses, own orders); site tickets |
 | **Phase 2** | Invoices, transactions, reviews, Q&A, product reports, buyer–seller tickets on Admin, Seller, and Buyer panels |
-| **Phase 3** | Analytics (Admin + Seller), marketing, CRM, blog, advanced exports and audit UI |
+| **Phase 3** | Analytics (Admin + Seller), marketing, CRM, **website context**, blog, **Editor** role, advanced exports and audit UI |

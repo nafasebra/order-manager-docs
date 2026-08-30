@@ -1,6 +1,6 @@
 # System Design
 
-Architecture for the e-commerce **marketplace**: **Admin panel** (full Admin or limited Support), **Seller panel**, and **Buyer panel**. Product constraints: [requirements.md](./requirements.md). Decisions: [adr.md](./adr.md). Model: [entities.md](./entities.md). Flows: [data-flow.md](./data-flow.md). Behavior: [use-case.md](./use-case.md), [edge-case.md](./edge-case.md).
+Architecture for the e-commerce **marketplace**: **Admin panel** (full Admin, limited Support, or limited Editor), **Seller panel**, and **Buyer panel**. Product constraints: [requirements.md](./requirements.md). Decisions: [adr.md](./adr.md). Model: [entities.md](./entities.md). Flows: [data-flow.md](./data-flow.md). Behavior: [use-case.md](./use-case.md), [edge-case.md](./edge-case.md).
 
 This document describes a **modular monolith** that can share a database with a future/existing storefront or sit behind an ingest API.
 
@@ -10,8 +10,8 @@ This document describes a **modular monolith** that can share a database with a 
 
 **Goals**
 
-- **Admin panel:** full Admin operators; **Support** is the same panel with limited grants (not a fourth panel).
-- **Seller panel:** analytics, products, orders, tickets — scoped to that shop.
+- **Admin panel:** full Admin operators; **Support** (ops) and **Editor** (website context + blog) are the same panel with limited grants (not extra panels).
+- **Seller panel:** analytics, products, orders, tickets, **delivery-method and payment-way settings** — scoped to that shop.
 - **Buyer panel:** profile, addresses, orders, tickets — scoped to that account.
 - Role-based access; Superuser sees every Admin-panel module including staff management.
 - Predictable list performance; auditable sensitive mutations.
@@ -30,11 +30,13 @@ flowchart TB
   MP --> BP[Buyer panel]
   AP --> AD[Admin full]
   AP --> SUP[Support limited]
+  AP --> ED[Editor website + blog]
   VP --> SE[Seller]
   SE --> A[Analytics]
   SE --> P[Products]
   SE --> O[Orders]
   SE --> T[Tickets]
+  SE --> SET[Settings delivery + payment]
   BP --> PR[Profile]
   BP --> ADDS[Addresses]
   BP --> BO[Orders]
@@ -110,7 +112,7 @@ Matches navigation in requirements §21.
 |--------|------|-------------------|
 | **Identity** | AdminUser, sessions, grants, RoleTemplate, Seller login | — |
 | **Audit** | AuditLog | called by all |
-| **People** | Buyer, Address, Seller, delivery methods, Buyer/Seller logins | Orders, Tickets (links) |
+| **People** | Buyer, Address, Seller, delivery methods, **payment ways**, Buyer/Seller logins | Orders, Tickets (links) |
 | **Catalog** | Product, images, variants, stock | Seller |
 | **Commerce** | Order, lines, status history, splits | People, Catalog (snapshots) |
 | **Billing** | Invoice, Transaction | Commerce, People |
@@ -118,7 +120,7 @@ Matches navigation in requirements §21.
 | **Trust** | Review, Q&A, ProductReport | Catalog, People |
 | **CRM** | Notes, tags, tasks, timeline queries | People, Commerce, Support, Billing |
 | **Marketing** | Campaign, coupon, banner | Commerce (redemptions) |
-| **Content** | Blog posts, comments | Identity (author) |
+| **Content** | SiteContext, WebsitePage, Blog posts, comments | Identity (author) |
 | **Analytics** | Aggregates, exports | All (read replicas / facts) |
 
 **MVP implements:** Identity, Audit (write), People, Catalog, Commerce, Support (`site` only).
@@ -133,7 +135,7 @@ Three UI shells:
 | Shell | Routes (example) | Modules |
 |-------|------------------|---------|
 | Admin panel | `/admin` … `/admin/settings/admins` | Full map; Admin vs Support via grants |
-| Seller panel | `/seller/analytics`, `/seller/products`, `/seller/orders`, `/seller/tickets` | Fixed: analytics, products, orders, tickets |
+| Seller panel | `/seller/analytics`, `/seller/products`, `/seller/orders`, `/seller/tickets`, `/seller/settings` | Fixed: analytics, products, orders, tickets, settings |
 | Buyer panel | `/account`, `/account/orders`, `/account/tickets`, `/account/addresses` | Fixed: profile, addresses, orders, tickets |
 
 Forbidden Admin modules return 403 for sellers and buyers. Cross-panel routes return 403 unless a future impersonate tool exists (not in scope).
@@ -165,7 +167,7 @@ flowchart TD
 
 **Session:** server-side session id in HTTP-only cookie.
 
-- Staff: `actor_type=staff`, `admin_id`. Re-read grants every request. Template `admin` or `support`.
+- Staff: `actor_type=staff`, `admin_id`. Re-read grants every request. Template `admin`, `support`, or `editor`.
 - Seller: `actor_type=seller`, `seller_id`. `disabled` invalidates access.
 - Buyer: `actor_type=buyer`, `buyer_id`. `suspended` / `anonymized` invalidates access.
 
@@ -184,6 +186,7 @@ Idle timeout from last_seen. One actor type per session.
 | transactions | view, refund |
 | products | view, edit |
 | reviews / qa / product_reports | view, moderate |
+| website | view, edit |
 | blog | view, edit |
 | tickets | view, respond |
 | admin_management | manage (superuser only in practice) |
@@ -196,6 +199,7 @@ Idle timeout from last_seen. One actor type per session.
 | products | view, edit | own `seller_id` only |
 | orders | view, update_status, cancel | own splits only; no refund |
 | tickets | view, respond | `buyer_seller` + own `seller_id` |
+| settings | view, edit | own shop: delivery methods, **payment ways**, support channels |
 
 **Buyer (fixed):**
 
@@ -216,7 +220,7 @@ Idle timeout from last_seen. One actor type per session.
 - One schema (or `app_*` schemas per module) with FKs across modules in MVP.
 - JSONB for snapshots (`shipping_address`, line specs, audit before/after).
 - Partial unique indexes: `email` unique where `deleted_at IS NULL AND status <> 'anonymized'`.
-- Indexes: order `(status, created_at)`, `(buyer_id)`, GIN or btree on `order_number`; tickets `(type, status, assignee_id)`; products `(seller_id, status)`.
+- Indexes: order `(status, created_at)`, `(buyer_id)`, GIN or btree on `order_number`; tickets `(type, status, assignee_id)`; products `(seller_id, status)`; delivery methods and payment ways unique `(seller_id, code)`.
 
 ### 6.2 Concurrency
 
@@ -310,10 +314,15 @@ REST under `/api/v1`, session cookie auth. All lists: `page`, `pageSize`, `sort`
 | CRUD | `/products` | staff products **or** seller (own rows only) |
 | GET/POST | `/tickets` `/tickets/:id/messages` | Admin **or** seller (`buyer_seller` + own shop) **or** buyer (own tickets) |
 | CRUD | `/admins` `/admins/:id/grants` | superuser |
-| GET | `/seller/analytics` | seller session |
+| GET/PATCH | `/seller/delivery-methods` | seller session (own `seller_id`; ignore client `seller_id`) |
+| GET/PATCH | `/seller/payment-ways` | seller session (own `seller_id`; ignore client `seller_id`) |
+| GET/PATCH | `/sellers/:id/delivery-methods` | staff people/sellers edit |
+| GET/PATCH | `/sellers/:id/payment-ways` | staff people/sellers edit |
 | GET | `/audit` | superuser or audit.view (phase 3 UI) |
 
 Phase 2 adds `/invoices`, `/transactions`, `/transactions/:id/refund`, `/reviews`, `/questions`, `/product-reports`.
+
+Phase 3 adds `GET/PATCH /website/context`, CRUD `/website/pages`, CRUD `/blog/posts`, comment moderate `/blog/posts/:id/comments` (Website / Blog grants; typical **Editor**).
 
 **Error model:** `401`, `403`, `404` (no leak), `409` (stale version / duplicate), `422` (validation, e.g. missing cancel reason).
 
@@ -321,7 +330,7 @@ Phase 2 adds `/invoices`, `/transactions`, `/transactions/:id/refund`, `/reviews
 
 ## 9. UI architecture
 
-- **Shells:** Admin sidebar filtered by Admin vs Support grants; **Seller** sidebar fixed (Analytics, Products, Orders, Tickets); **Buyer** sidebar fixed (Profile, Addresses, Orders, Tickets).
+- **Shells:** Admin sidebar filtered by Admin vs Support vs **Editor** grants; **Seller** sidebar fixed (Analytics, Products, Orders, Tickets, Settings); **Buyer** sidebar fixed (Profile, Addresses, Orders, Tickets). Editor typically sees Website and Blog only.
 - **List pattern:** filters, sort, pagination, empty state, bulk only when a command exists.
 - **Detail pattern:** header (id, status chips), tabs or sections for related records (order → buyer, seller(s), invoice, transactions, tickets).
 - **Command pattern:** destructive/financial actions in a confirm dialog that maps to the API confirm flag.
@@ -329,8 +338,8 @@ Phase 2 adds `/invoices`, `/transactions`, `/transactions/:id/refund`, `/reviews
 
 Route groups example:
 
-- Admin: `/admin`, `/admin/orders`, `/admin/buyers`, `/admin/sellers`, `/admin/products`, `/admin/tickets`, `/admin/settings/admins`
-- Seller: `/seller/analytics`, `/seller/products`, `/seller/orders`, `/seller/tickets`
+- Admin: `/admin`, `/admin/orders`, `/admin/buyers`, `/admin/sellers`, `/admin/products`, `/admin/tickets`, `/admin/website`, `/admin/blog`, `/admin/settings/admins`
+- Seller: `/seller/analytics`, `/seller/products`, `/seller/orders`, `/seller/tickets`, `/seller/settings`
 - Buyer: `/account`, `/account/orders`, `/account/orders/[id]`, `/account/addresses`, `/account/tickets`
 
 ---
@@ -372,7 +381,7 @@ Inclusion rules live in code next to the fact builder (canceled-but-paid, refund
 |--------|---------|
 | Session theft | HTTP-only Secure cookie, short idle, HTTPS |
 | CSRF | SameSite + CSRF token on mutations |
-| IDOR | Permission + ownership/scope on every query (tickets, products, orders, seller_id) |
+| IDOR | Permission + ownership/scope on every query (tickets, products, orders, seller_id, delivery methods, payment ways) |
 | Privilege escalation | Superuser-only admin_management; last-superuser invariant; seller cannot reach staff routes |
 | Seller data leak | Session-injected `seller_id`; tests for cross-seller IDs |
 | XSS | Framework escaping; sanitize blog/product rich text on write |
@@ -415,11 +424,11 @@ App instances are stateless. Sessions in Postgres or Redis. Backups: Postgres PI
 
 ## 15. MVP build sequence
 
-1. **Identity:** Admin login (Admin / Support), seller login, **buyer login**, sessions, grants, last-superuser rule, disable/suspend vs session, audit writer.
-2. **Shells:** Admin panel, Seller panel (analytics, products, orders, tickets), Buyer panel (profile, addresses, orders, tickets).
-3. **People:** buyers and sellers as Admin records; provision seller/buyer logins.
+1. **Identity:** Admin login (Admin / Support / **Editor** template), seller login, **buyer login**, sessions, grants, last-superuser rule, disable/suspend vs session, audit writer. Website/blog UI waits for phase 3.
+2. **Shells:** Admin panel, Seller panel (analytics, products, orders, tickets, **delivery methods + payment ways**), Buyer panel (profile, addresses, orders, tickets).
+3. **People:** buyers and sellers as Admin records; provision seller/buyer logins; seller **delivery methods** and **payment ways**.
 4. **Catalog:** products; seller manages own products.
-5. **Commerce:** orders + OrderSplit; Admin all, seller own splits, buyer own orders.
+5. **Commerce:** orders + OrderSplit + **delivery-method and payment-way snapshots** at place-order; Admin all, seller own splits, buyer own orders.
 6. **Tickets:** site tickets on Admin, Buyer; assign/thread.
 7. **Hardening:** pagination, isolation tests for all three actors.
 
