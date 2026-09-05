@@ -430,7 +430,7 @@ App instances are stateless. Sessions in Postgres or Redis. Backups: Postgres PI
 4. **Catalog:** products; seller manages own products.
 5. **Commerce:** orders + OrderSplit + **delivery-method and payment-way snapshots** at place-order; Admin all, seller own splits, buyer own orders.
 6. **Tickets:** site tickets on Admin, Buyer; assign/thread.
-7. **Hardening:** pagination, isolation tests for all three actors.
+7. **Hardening:** pagination; **frontend** Vitest unit tests (permissions, guards, patterns); **backend** API isolation tests for all three actors.
 
 Phase 2/3 attach Billing, Trust, CRM, Marketing, Content, Analytics, and buyer–seller tickets on all panels.
 
@@ -461,3 +461,8 @@ Resolve before the named phase ships:
 | [data-flow.md](./data-flow.md) | Runtime flows |
 | [adr.md](./adr.md) | Decisions |
 | [system-design.md](./system-design.md) | This architecture |
+| [frontend-architecture.md](./frontend-architecture.md) | Frontend structure |
+| [design.md](./design.md) | Clean Commerce visual direction |
+| [color-system.md](./color-system.md) | Color palette and semantic tokens |
+| [design-system.md](./design-system.md) | Clean Commerce implementation kit |
+| [v1-page-architecture.md](./v1-page-architecture.md) | Routes |

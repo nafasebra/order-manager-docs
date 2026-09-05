@@ -210,8 +210,10 @@ Status values: **Accepted** (required by the spec or locked here) · **Proposed*
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Web UI | React + Next.js App Router | Admin, Seller, and Buyer panels, SSR/auth cookies |
-| API | Same app Route Handlers or a dedicated API service | Start modular monolith; split if storefront already owns a backend |
+| Web UI | **React + Vite + TanStack Router** | SPA for Admin, Seller, and Buyer panels; session cookies via `credentials: 'include'` |
+| Styling | **Tailwind CSS v4 + shadcn/ui** | CSS-first `@theme`; Radix primitives; Mint + Teal + Navy from [color-system.md](./color-system.md) |
+| Lists / tables | **TanStack Table + TanStack Virtual + TanStack Query** | Server-paginated tables; virtual scroll for lists and large table pages |
+| API | Dedicated API service (modular monolith) | Vite dev proxy; production static `dist/` + API same origin |
 | DB | PostgreSQL | Strong constraints, JSON snapshots, pagination |
 | Auth | Session cookies (HTTP-only) + server-side session store | Matches NFR session timeout better than long-lived JWT in localStorage |
 | Files | S3-compatible object storage | Images, evidence, PDFs |

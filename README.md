@@ -21,3 +21,9 @@ Support and **Editor** are **not** extra panels. They are the same Admin panel w
 | [data-flow.md](./data-flow.md) | Runtime flows |
 | [adr.md](./adr.md) | Architecture decisions |
 | [system-design.md](./system-design.md) | Technical architecture |
+| [frontend-architecture.md](./frontend-architecture.md) | React + Vite + TanStack Router + shadcn frontend structure |
+| [apps/web/README.md](./apps/web/README.md) | **Frontend app** — runnable panels with mock data |
+| [design.md](./design.md) | Clean Commerce visual direction |
+| [color-system.md](./color-system.md) | Mint + Teal + Navy palette and semantic tokens |
+| [design-system.md](./design-system.md) | Clean Commerce — Tailwind CSS v4 + shadcn/ui implementation |
+| [v1-page-architecture.md](./v1-page-architecture.md) | Routes and page inventory |
