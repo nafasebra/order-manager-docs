@@ -3,6 +3,10 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { StatusChip } from "@/components/patterns/StatusChip";
 import {
@@ -97,7 +101,20 @@ export function AdminOrdersListPage({ search, onSearchChange }: Props) {
         </Select>
       </FilterBar>
       <DataTable
-        columns={columns}
+        columns={[
+          ...columns,
+          actionsColumn<Order>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/orders/$orderId",
+                  params: { orderId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense

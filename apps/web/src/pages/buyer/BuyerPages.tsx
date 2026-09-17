@@ -9,6 +9,10 @@ import { MapPin, Package, LifeBuoy, User } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { StatusChip } from "@/components/patterns/StatusChip";
@@ -639,7 +643,20 @@ export function BuyerOrdersListPage({ search, onSearchChange }: ListProps) {
         </Select>
       </FilterBar>
       <DataTable
-        columns={orderColumns}
+        columns={[
+          ...orderColumns,
+          actionsColumn<Order>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/account/orders/$orderId",
+                  params: { orderId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         onRowClick={(row) =>
@@ -846,7 +863,20 @@ export function BuyerTicketsListPage({ search, onSearchChange }: ListProps) {
         searchPlaceholder="Search tickets…"
       />
       <DataTable
-        columns={ticketColumns}
+        columns={[
+          ...ticketColumns,
+          actionsColumn<Ticket>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/account/tickets/$ticketId",
+                  params: { ticketId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         onRowClick={(row) =>

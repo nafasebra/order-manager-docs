@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { DescriptionList } from "@/components/patterns/DescriptionList";
 import { WaySettingsList } from "@/components/patterns/WaySettingsList";
@@ -101,7 +105,20 @@ export function AdminBuyersListPage({ search, onSearchChange }: ListProps) {
         </Select>
       </FilterBar>
       <DataTable
-        columns={buyerColumns}
+        columns={[
+          ...buyerColumns,
+          actionsColumn<Buyer>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/buyers/$buyerId",
+                  params: { buyerId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
@@ -228,7 +245,20 @@ export function AdminSellersListPage({ search, onSearchChange }: ListProps) {
         </Select>
       </FilterBar>
       <DataTable
-        columns={sellerColumns}
+        columns={[
+          ...sellerColumns,
+          actionsColumn<Seller>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/sellers/$sellerId",
+                  params: { sellerId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense

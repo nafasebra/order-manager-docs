@@ -4,6 +4,10 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { StatusChip } from "@/components/patterns/StatusChip";
 import {
   WaySettingsList,
@@ -211,7 +215,10 @@ export function SellerOverviewPage() {
               </div>
               {stats.data.recentTickets.length ? (
                 <DataTable
-                  columns={ticketColumns}
+                  columns={[
+                    ...ticketColumns,
+                    actionsColumn<Ticket>((row) => [copyIdAction(row.id)]),
+                  ]}
                   data={stats.data.recentTickets}
                   dense
                 />

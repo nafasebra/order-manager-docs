@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { DescriptionList } from "@/components/patterns/DescriptionList";
 import { ConfirmDialog } from "@/components/patterns/ConfirmDialog";
@@ -103,7 +107,20 @@ export function AdminTransactionsListPage({
         </Select>
       </FilterBar>
       <DataTable
-        columns={columns}
+        columns={[
+          ...columns,
+          actionsColumn<Transaction>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/transactions/$transactionId",
+                  params: { transactionId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense

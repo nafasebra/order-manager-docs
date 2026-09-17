@@ -1,6 +1,12 @@
 export { PageHeader } from "./PageHeader";
 export { StatusChip } from "./StatusChip";
 export { DataTable } from "./DataTable";
+export {
+  DataTableRowActions,
+  actionsColumn,
+  copyIdAction,
+} from "./DataTableRowActions";
+export type { DataTableAction } from "./DataTableRowActions";
 export { VirtualList } from "./VirtualList";
 export { FilterBar } from "./FilterBar";
 export { EmptyState } from "./EmptyState";

@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { DescriptionList } from "@/components/patterns/DescriptionList";
 import { StatusChip } from "@/components/patterns/StatusChip";
@@ -122,7 +126,20 @@ export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
         </Select>
       </FilterBar>
       <DataTable
-        columns={productColumns}
+        columns={[
+          ...productColumns,
+          actionsColumn<Product>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/products/$productId",
+                  params: { productId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
@@ -365,7 +382,20 @@ function ModerationListPage<T extends { id: string }>({
         </Select>
       </FilterBar>
       <DataTable
-        columns={columns}
+        columns={[
+          ...columns,
+          actionsColumn<T>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: detailTo as "/",
+                  params: { id: row.id } as never,
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
@@ -429,7 +459,20 @@ export function AdminReviewsListPage(props: ListProps) {
         </Select>
       </FilterBar>
       <DataTable
-        columns={reviewColumns}
+        columns={[
+          ...reviewColumns,
+          actionsColumn<Review>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/reviews/$reviewId",
+                  params: { reviewId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
@@ -524,7 +567,20 @@ export function AdminQuestionsListPage(props: ListProps) {
       <PageHeader title="Q&A" description="Moderate product questions." />
       <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search questions…" />
       <DataTable
-        columns={qaColumns}
+        columns={[
+          ...qaColumns,
+          actionsColumn<Question>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/questions/$questionId",
+                  params: { questionId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
@@ -605,7 +661,20 @@ export function AdminReportsListPage(props: ListProps) {
       />
       <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search reports…" />
       <DataTable
-        columns={reportColumns}
+        columns={[
+          ...reportColumns,
+          actionsColumn<ProductReport>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/product-reports/$reportId",
+                  params: { reportId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense

@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { DescriptionList } from "@/components/patterns/DescriptionList";
 import { ErrorState } from "@/components/patterns/ErrorState";
@@ -89,7 +93,20 @@ export function AdminMarketingListPage({ search, onSearchChange }: ListProps) {
       />
       <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search campaigns…" />
       <DataTable
-        columns={campaignColumns}
+        columns={[
+          ...campaignColumns,
+          actionsColumn<Campaign>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/marketing/$campaignId",
+                  params: { campaignId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
@@ -264,7 +281,20 @@ export function AdminCrmListPage({ search, onSearchChange }: ListProps) {
       <PageHeader title="CRM" description="Buyer and seller contacts." />
       <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search contacts…" />
       <DataTable
-        columns={contactColumns}
+        columns={[
+          ...contactColumns,
+          actionsColumn<CrmContact>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/crm/$contactId",
+                  params: { contactId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
@@ -440,7 +470,20 @@ export function AdminWebsitePagesListPage({
         }
       />
       <DataTable
-        columns={pageColumns}
+        columns={[
+          ...pageColumns,
+          actionsColumn<SitePage>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/website/pages/$pageId",
+                  params: { pageId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
@@ -577,7 +620,20 @@ export function AdminBlogListPage({ search, onSearchChange }: ListProps) {
         }
       />
       <DataTable
-        columns={postColumns}
+        columns={[
+          ...postColumns,
+          actionsColumn<BlogPost>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/blog/$postId",
+                  params: { postId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense

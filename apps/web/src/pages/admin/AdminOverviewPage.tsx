@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { StatusChip } from "@/components/patterns/StatusChip";
 import {
   OrderStatusChart,
@@ -86,6 +90,7 @@ const recentColumns: ColumnDef<Order>[] = [
 ];
 
 export function AdminOverviewPage() {
+  const navigate = useNavigate();
   const [range, setRange] = useState<ChartRange>("30d");
   const stats = useAdminStats();
   const recent = useOrders({ page: 1, pageSize: 8, sort: "-createdAt" });
@@ -147,7 +152,20 @@ export function AdminOverviewPage() {
       <div>
         <h2 className="mb-3 text-lg font-semibold">Recent orders</h2>
         <DataTable
-          columns={recentColumns}
+          columns={[
+            ...recentColumns,
+            actionsColumn<Order>((row) => [
+              {
+                label: "View details",
+                onSelect: () =>
+                  void navigate({
+                    to: "/admin/orders/$orderId",
+                    params: { orderId: row.id },
+                  }),
+              },
+              copyIdAction(row.id),
+            ]),
+          ]}
           data={recent.data?.items ?? []}
           isLoading={recent.isLoading}
           dense

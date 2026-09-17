@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { DescriptionList } from "@/components/patterns/DescriptionList";
 import { ConfirmDialog } from "@/components/patterns/ConfirmDialog";
@@ -129,7 +133,20 @@ export function AdminInvoicesListPage({ search, onSearchChange }: ListProps) {
         </Select>
       </FilterBar>
       <DataTable
-        columns={invoiceColumns}
+        columns={[
+          ...invoiceColumns,
+          actionsColumn<Invoice>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/invoices/$invoiceId",
+                  params: { invoiceId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense

@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { DescriptionList } from "@/components/patterns/DescriptionList";
 import { ErrorState } from "@/components/patterns/ErrorState";
@@ -103,7 +107,20 @@ export function AdminAdminsListPage({ search, onSearchChange }: ListProps) {
       />
       <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search admins…" />
       <DataTable
-        columns={columns}
+        columns={[
+          ...columns,
+          actionsColumn<AdminAccount>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/settings/admins/$adminId",
+                  params: { adminId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense

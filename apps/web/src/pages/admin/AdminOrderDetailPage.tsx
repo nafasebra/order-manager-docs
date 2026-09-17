@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
@@ -7,6 +7,10 @@ import { DescriptionList } from "@/components/patterns/DescriptionList";
 import { SnapshotBlock } from "@/components/patterns/SnapshotBlock";
 import { StatusChip } from "@/components/patterns/StatusChip";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ConfirmDialog } from "@/components/patterns/ConfirmDialog";
 import { VirtualList } from "@/components/patterns/VirtualList";
 import { ErrorState } from "@/components/patterns/ErrorState";
@@ -40,6 +44,7 @@ const lineColumns: ColumnDef<OrderLineItem>[] = [
 type Props = { orderId: string };
 
 export function AdminOrderDetailPage({ orderId }: Props) {
+  const navigate = useNavigate();
   const { data, isLoading, isError } = useOrder(orderId);
   const mutate = useMockMutation("orders");
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -143,7 +148,24 @@ export function AdminOrderDetailPage({ orderId }: Props) {
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
         <TabsContent value="lines" className="pt-4">
-          <DataTable columns={lineColumns} data={data.lineItems} dense />
+          <DataTable
+            columns={[
+              ...lineColumns,
+              actionsColumn<OrderLineItem>((row) => [
+                {
+                  label: "View product",
+                  onSelect: () =>
+                    void navigate({
+                      to: "/admin/products/$productId",
+                      params: { productId: row.productId },
+                    }),
+                },
+                copyIdAction(row.id),
+              ]),
+            ]}
+            data={data.lineItems}
+            dense
+          />
         </TabsContent>
         <TabsContent value="history" className="pt-4">
           <VirtualList

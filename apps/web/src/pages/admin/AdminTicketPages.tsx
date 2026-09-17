@@ -5,6 +5,10 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { DataTable } from "@/components/patterns/DataTable";
+import {
+  actionsColumn,
+  copyIdAction,
+} from "@/components/patterns/DataTableRowActions";
 import { ListPagination } from "@/components/patterns/ListPagination";
 import { StatusChip } from "@/components/patterns/StatusChip";
 import { VirtualList } from "@/components/patterns/VirtualList";
@@ -97,7 +101,20 @@ export function AdminTicketsListPage({ search, onSearchChange }: ListProps) {
         </Select>
       </FilterBar>
       <DataTable
-        columns={columns}
+        columns={[
+          ...columns,
+          actionsColumn<Ticket>((row) => [
+            {
+              label: "View details",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/support/tickets/$ticketId",
+                  params: { ticketId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+          ]),
+        ]}
         data={query.data?.items ?? []}
         isLoading={query.isLoading}
         dense
