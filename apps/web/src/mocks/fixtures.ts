@@ -472,19 +472,27 @@ export const productReports: ProductReport[] = Array.from(
 
 export const campaigns: Campaign[] = Array.from({ length: 20 }, (_, i) => {
   const n = i + 1;
-  const statuses = ["draft", "scheduled", "active", "ended"] as const;
+  const statuses = ["draft", "scheduled", "active", "paused", "ended"] as const;
+  const status = pick(statuses, i);
+  const campaignDate = (offsetDays: number) => new Date(Date.now() + offsetDays * 86400000).toISOString();
   return {
     id: `camp-${pad(n)}`,
     name: pick(
       ["Spring sale", "Welcome 10%", "Free ship weekend", "Flash deal"],
       i,
     ) + ` ${n}`,
-    status: pick(statuses, i),
+    status,
     discountType: i % 2 === 0 ? "percent" : "fixed",
     discountValue: i % 2 === 0 ? 10 + (i % 15) : 5 + (i % 20),
-    code: `SAVE${pad(n, 3)}`,
-    startsAt: daysAgo(20 - (i % 20)),
-    endsAt: daysAgo(-(10 + (i % 15))),
+      code: `SAVE${pad(n, 3)}`,
+      tenantIds: i % 3 === 0 ? [] : sellers.slice(i % 5, (i % 5) + 2).map((seller) => seller.id),
+      channel: pick(["storefront", "email", "social"] as const, i),
+      budget: 500 + i * 100,
+      usageLimit: 500,
+      description: "Marketplace promotion with participating store targeting.",
+      createdBy: "Template admin",
+    startsAt: campaignDate(status === "scheduled" ? 2 : -14),
+    endsAt: campaignDate(status === "ended" ? -1 : 14),
     usageCount: i * 12,
     revenueAttributed: i * 340.5,
     createdAt: daysAgo(25 - (i % 20)),

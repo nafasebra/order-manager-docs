@@ -511,7 +511,10 @@ export function useCampaigns(params?: ListParams) {
     queryKey: ["campaigns", params],
     queryFn: () =>
       listResource<Campaign>({
-        items: campaigns,
+        items: campaigns
+          .filter((campaign) => !params?.tenant || !campaign.tenantIds?.length || campaign.tenantIds.includes(String(params.tenant)))
+          .filter((campaign) => !params?.channel || (campaign.channel ?? "storefront") === params.channel)
+          .map((campaign) => ({ ...campaign, channel: campaign.channel ?? "storefront", storeCount: campaign.tenantIds?.length || sellers.length })),
         params,
         searchKeys: ["name", "code"],
         statusKey: "status",

@@ -58,7 +58,7 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
         ? [{ label: "Analytics", to: "/admin/analytics", icon: BarChart3 }]
         : []),
       ...(canView(user, "marketing")
-        ? [{ label: "Marketing", to: "/admin/marketing", icon: Megaphone }]
+        ? [{ label: "Campaigns", to: "/admin/marketing", icon: Megaphone }]
         : []),
       ...(canView(user, "crm")
         ? [{ label: "CRM", to: "/admin/crm", icon: Contact }]

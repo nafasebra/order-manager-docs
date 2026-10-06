@@ -29,18 +29,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
-  useCampaign,
-  useCampaigns,
   useContact,
   useContacts,
   useMockMutation,
@@ -50,209 +40,14 @@ import {
   usePosts,
   useSiteContext,
 } from "@/lib/api/resources";
-import { formatMoney, formatDate } from "@/lib/formats";
-import type { Campaign, CrmContact, ListParams, SitePage, BlogPost } from "@/types";
+import { formatDate } from "@/lib/formats";
+import type { CrmContact, ListParams, SitePage, BlogPost } from "@/types";
 
 type ListProps = {
   search: ListParams;
   onSearchChange: (next: Partial<ListParams>) => void;
 };
 
-const campaignColumns: ColumnDef<Campaign>[] = [
-  { accessorKey: "name", header: "Name" },
-  { accessorKey: "code", header: "Code" },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => <Badge variant="secondary">{row.original.status}</Badge>,
-  },
-  { accessorKey: "usageCount", header: "Usage" },
-  {
-    accessorKey: "revenueAttributed",
-    header: "Revenue",
-    cell: ({ row }) => formatMoney(row.original.revenueAttributed),
-  },
-];
-
-export function AdminMarketingListPage({ search, onSearchChange }: ListProps) {
-  const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
-  const debouncedQ = useDebouncedValue(q);
-  const query = useCampaigns({ ...search, q: debouncedQ || undefined });
-
-  return (
-    <div>
-      <PageHeader
-        title="Marketing"
-        description="Campaigns and discounts."
-        actions={
-          <Button asChild>
-            <Link to="/admin/marketing/new">Create campaign</Link>
-          </Button>
-        }
-      />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search campaigns…" />
-      <DataTable
-        columns={[
-          ...campaignColumns,
-          actionsColumn<Campaign>((row) => [
-            {
-              label: "View details",
-              onSelect: () =>
-                void navigate({
-                  to: "/admin/marketing/$campaignId",
-                  params: { campaignId: row.id },
-                }),
-            },
-            copyIdAction(row.id),
-          ]),
-        ]}
-        data={query.data?.items ?? []}
-        isLoading={query.isLoading}
-        dense
-        onRowClick={(row) =>
-          void navigate({
-            to: "/admin/marketing/$campaignId",
-            params: { campaignId: row.id },
-          })
-        }
-      />
-      <ListPagination
-        page={Number(search.page ?? 1)}
-        pageSize={Number(search.pageSize ?? 25)}
-        total={query.data?.total ?? 0}
-        onPageChange={(page) => onSearchChange({ page })}
-      />
-    </div>
-  );
-}
-
-const campaignSchema = z.object({
-  name: z.string().min(1),
-  code: z.string().min(1),
-  discountValue: z.coerce.number().positive(),
-});
-
-export function AdminCampaignCreatePage() {
-  const navigate = useNavigate();
-  const mutate = useMockMutation("campaigns");
-  const form = useForm<z.infer<typeof campaignSchema>>({
-    resolver: zodResolver(campaignSchema),
-    defaultValues: { name: "", code: "", discountValue: 10 },
-  });
-
-  return (
-    <div className="mx-auto max-w-xl space-y-6">
-      <PageHeader title="Create campaign" />
-      <Form {...form}>
-        <form
-          className="space-y-4"
-          onSubmit={form.handleSubmit(async (values) => {
-            await mutate.mutateAsync(values);
-            toast.success("Campaign created (mock)");
-            void navigate({ to: "/admin/marketing" });
-          })}
-        >
-          {(["name", "code"] as const).map((name) => (
-            <FormField
-              key={name}
-              control={form.control}
-              name={name}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{name === "code" ? "Code" : "Name"}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
-          <FormField
-            control={form.control}
-            name="discountValue"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Discount %</FormLabel>
-                <FormControl>
-                  <Input type="number" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button type="submit">Create</Button>
-        </form>
-      </Form>
-    </div>
-  );
-}
-
-export function AdminCampaignDetailPage({
-  campaignId,
-}: {
-  campaignId: string;
-}) {
-  const { data, isLoading, isError } = useCampaign(campaignId);
-  if (isLoading) return <Skeleton className="h-64 w-full" />;
-  if (isError || !data) return <ErrorState title="Campaign not found" />;
-
-  return (
-    <div className="space-y-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to="/admin/marketing">Marketing</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{data.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <PageHeader
-        title={data.name}
-        description={data.code}
-        actions={<Badge variant="secondary">{data.status}</Badge>}
-      />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Usage</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {data.usageCount}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">
-              Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {formatMoney(data.revenueAttributed)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">
-              Discount
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {data.discountType === "percent"
-              ? `${data.discountValue}%`
-              : formatMoney(data.discountValue)}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
 
 const contactColumns: ColumnDef<CrmContact>[] = [
   { accessorKey: "name", header: "Name" },

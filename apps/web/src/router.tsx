@@ -66,15 +66,13 @@ import {
   AdminBlogDetailPage,
   AdminBlogEditorPage,
   AdminBlogListPage,
-  AdminCampaignCreatePage,
-  AdminCampaignDetailPage,
   AdminCrmDetailPage,
   AdminCrmListPage,
-  AdminMarketingListPage,
   AdminWebsitePage,
   AdminWebsitePageEditor,
   AdminWebsitePagesListPage,
 } from "@/pages/admin/AdminContentPages";
+import { AdminCampaignCreatePage, AdminCampaignDetailPage, AdminMarketingListPage } from "@/pages/admin/AdminCampaignPages";
 import {
   AdminTicketDetailPage,
   AdminTicketsListPage,
@@ -239,7 +237,11 @@ const adminAnalyticsRoute = createRoute({
 const adminMarketingRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/marketing",
-  validateSearch: listSearchSchema,
+  validateSearch: listSearchSchema.extend({
+    status: z.enum(["draft", "scheduled", "active", "paused", "ended"]).optional(),
+    tenant: z.string().optional(),
+    channel: z.enum(["storefront", "email", "social"]).optional(),
+  }),
   beforeLoad: ({ context }) => requireGrant(context, "marketing", "view"),
   component: function Page() {
     const { search, onSearchChange } = useListSearchSync(adminMarketingRoute);

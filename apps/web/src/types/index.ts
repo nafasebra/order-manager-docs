@@ -60,7 +60,7 @@ export type ModerationStatus = "pending" | "approved" | "hidden" | "deleted";
 
 export type ReportStatus = "open" | "investigating" | "resolved" | "dismissed";
 
-export type CampaignStatus = "draft" | "scheduled" | "active" | "ended";
+export type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "ended";
 
 export type SessionUser = {
   id: string;
@@ -322,6 +322,14 @@ export type ProductReport = {
 };
 
 export type Campaign = {
+  tenantIds?: string[];
+  channel?: "storefront" | "email" | "social";
+  budget?: number;
+  usageLimit?: number;
+  description?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  history?: { action: string; actor: string; at: string }[];
   id: string;
   name: string;
   status: CampaignStatus;
