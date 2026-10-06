@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/patterns/PageHeader";
+import { IncomeStatistics } from "@/components/patterns/IncomeStatistics";
 import {
   OrderStatusChart,
   SalesOverviewChart,
@@ -41,6 +42,8 @@ export function AdminAnalyticsPage() {
           </div>
         }
       />
+
+      <IncomeStatistics data={stats.data?.income} scope="marketplace" />
 
       {stats.isLoading || !stats.data ? (
         <div className="grid gap-4 lg:grid-cols-2">

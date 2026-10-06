@@ -39,6 +39,7 @@ import type {
   SiteContext,
   SitePage,
   Ticket,
+  TicketStatus,
   Transaction,
 } from "@/types";
 
@@ -52,12 +53,12 @@ export function useAdminStats() {
   });
 }
 
-export function useSellerStats(sellerId: string) {
+export function useSellerStats(sellerId: string, days?: number) {
   return useQuery({
-    queryKey: ["seller-stats", sellerId],
+    queryKey: ["seller-stats", sellerId, days],
     queryFn: async () => {
       await new Promise((r) => setTimeout(r, 150));
-      return buildSellerStats(sellerId);
+      return buildSellerStats(sellerId, days);
     },
     enabled: Boolean(sellerId),
   });
@@ -413,6 +414,52 @@ export function useTicket(id: string) {
     queryKey: ["tickets", id],
     queryFn: () => getById(tickets, id),
     enabled: Boolean(id),
+  });
+}
+
+function sellerTickets(sellerId: string) {
+  return tickets.filter((ticket) => ticket.channel === "buyer_seller" && ticket.sellerId === sellerId);
+}
+
+export function useSellerTickets(sellerId: string, params?: ListParams) {
+  return useQuery({
+    queryKey: ["seller-tickets", sellerId, params],
+    queryFn: () => listResource<Ticket>({ items: sellerTickets(sellerId), params, searchKeys: ["ticketNumber", "subject", "requesterName"], statusKey: "status" }),
+    enabled: Boolean(sellerId),
+  });
+}
+
+export function useSellerTicket(sellerId: string, id: string) {
+  return useQuery({
+    queryKey: ["seller-tickets", sellerId, id],
+    queryFn: async () => {
+      const ticket = await getById(sellerTickets(sellerId), id);
+      return { ...ticket, messages: ticket.messages.filter((message) => !message.internal) };
+    },
+    enabled: Boolean(sellerId && id),
+  });
+}
+
+export function useSellerTicketMutation(sellerId: string, authorName: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { id: string; action: "reply"; body: string } | { id: string; action: "status"; status: TicketStatus }) => {
+      const ticket = await getById(sellerTickets(sellerId), payload.id);
+      if (payload.action === "reply") {
+        if (ticket.status === "closed") throw new Error("This ticket is closed.");
+        if (!payload.body.trim()) throw new Error("Write a reply first.");
+        ticket.messages.push({ id: `message-${Date.now()}`, authorId: sellerId, authorName, authorType: "seller", body: payload.body.trim(), createdAt: new Date().toISOString(), internal: false });
+      } else {
+        ticket.status = payload.status;
+      }
+      ticket.updatedAt = new Date().toISOString();
+      return ticket;
+    },
+    onSuccess: () => {
+      for (const key of ["seller-tickets", "seller-stats", "tickets", "buyer-tickets", "buyer-summary"]) {
+        void qc.invalidateQueries({ queryKey: [key] });
+      }
+    },
   });
 }
 

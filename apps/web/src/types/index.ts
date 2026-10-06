@@ -416,6 +416,7 @@ export type RankedItem = {
 };
 
 export type AdminStats = {
+  income: IncomePoint[];
   revenue: number;
   revenueChange: number;
   orders: number;
@@ -430,7 +431,26 @@ export type AdminStats = {
   topSellers: RankedItem[];
 };
 
+export type IncomePoint = {
+  date: string;
+  collected: number;
+  refunds: number;
+  net: number;
+  pending: number;
+};
+
+export type SellerProductStat = {
+  productId: string;
+  name: string;
+  sku: string;
+  unitsSold: number;
+  orderCount: number;
+  revenue: number;
+};
+
 export type SellerStats = Omit<AdminStats, "topSellers" | "pendingReviews"> & {
+  itemsOrdered: number;
+  topSellingProducts: SellerProductStat[];
   lowStock: Product[];
   recentTickets: Ticket[];
 };

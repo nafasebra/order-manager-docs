@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/patterns/PageHeader";
+import { IncomeStatistics } from "@/components/patterns/IncomeStatistics";
 import { DataTable } from "@/components/patterns/DataTable";
 import {
   actionsColumn,
@@ -127,6 +128,8 @@ export function AdminOverviewPage() {
           loading={stats.isLoading}
         />
       </div>
+
+      <IncomeStatistics data={stats.data?.income} scope="marketplace" />
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">

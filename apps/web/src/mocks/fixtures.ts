@@ -8,6 +8,7 @@ import type {
   Category,
   CrmContact,
   Invoice,
+  IncomePoint,
   Order,
   OrderStatus,
   Product,
@@ -15,6 +16,7 @@ import type {
   Question,
   Review,
   Seller,
+  SellerProductStat,
   SellerStats,
   SiteContext,
   SitePage,
@@ -624,6 +626,22 @@ export const admins: AdminAccount[] = [
   },
 ];
 
+function buildIncomeStats(sellerId?: string): IncomePoint[] {
+  const scoped = transactions.filter(
+    (transaction) => !sellerId || transaction.sellerId === sellerId,
+  );
+  return Array.from({ length: 90 }, (_, index) => {
+    const date = daysAgo(89 - index).slice(0, 10);
+    const daily = scoped.filter((transaction) => transaction.createdAt.startsWith(date));
+    const sum = (type: Transaction["type"], status: Transaction["status"]) =>
+      Math.round(daily.filter((transaction) => transaction.type === type && transaction.status === status)
+        .reduce((total, transaction) => total + Math.abs(transaction.amount), 0) * 100) / 100;
+    const collected = sum("payment", "completed");
+    const refunds = sum("refund", "completed");
+    return { date, collected, refunds, net: Math.round((collected - refunds) * 100) / 100, pending: sum("payment", "pending") };
+  });
+}
+
 export function buildAdminStats(): AdminStats {
   const delivered = orders.filter((o) => o.status === "delivered");
   const revenue = delivered.reduce((s, o) => s + o.total, 0);
@@ -680,6 +698,7 @@ export function buildAdminStats(): AdminStats {
     .slice(0, 8);
 
   return {
+    income: buildIncomeStats(),
     revenue: Math.round(revenue * 100) / 100,
     revenueChange: 7.2,
     orders: orders.length,
@@ -697,8 +716,12 @@ export function buildAdminStats(): AdminStats {
   };
 }
 
-export function buildSellerStats(sellerId: string): SellerStats {
-  const sellerOrders = orders.filter((o) => o.sellerIds.includes(sellerId));
+export function buildSellerStats(sellerId: string, days?: number): SellerStats {
+  const startDate = days ? daysAgo(days - 1).slice(0, 10) : undefined;
+  const sellerOrders = orders.filter((o) =>
+    o.lineItems.some((item) => item.sellerId === sellerId) &&
+    (!startDate || o.createdAt.slice(0, 10) >= startDate),
+  );
   const sellerProducts = products.filter((p) => p.sellerId === sellerId);
   const sellerTickets = tickets.filter((t) => t.sellerId === sellerId);
 
@@ -710,8 +733,9 @@ export function buildSellerStats(sellerId: string): SellerStats {
     return s + (share || o.total / Math.max(o.sellerIds.length, 1));
   }, 0);
 
-  const salesSeries = Array.from({ length: 30 }, (_, i) => {
-    const date = daysAgo(29 - i).slice(0, 10);
+  const seriesDays = days ?? 30;
+  const salesSeries = Array.from({ length: seriesDays }, (_, i) => {
+    const date = daysAgo(seriesDays - 1 - i).slice(0, 10);
     const dayOrders = sellerOrders.filter((o) => o.createdAt.startsWith(date));
     const dayRevenue = dayOrders.reduce((s, o) => {
       const share = o.lineItems
@@ -760,7 +784,45 @@ export function buildSellerStats(sellerId: string): SellerStats {
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
 
+  const productStats = new Map<
+    string,
+    SellerProductStat & { orderIds: Set<string> }
+  >();
+  for (const order of sellerOrders) {
+    for (const lineItem of order.lineItems) {
+      if (lineItem.sellerId !== sellerId) continue;
+      const current = productStats.get(lineItem.productId) ?? {
+        productId: lineItem.productId,
+        name: lineItem.productName,
+        sku: lineItem.sku,
+        unitsSold: 0,
+        orderCount: 0,
+        revenue: 0,
+        orderIds: new Set<string>(),
+      };
+      current.unitsSold += lineItem.quantity;
+      current.revenue += lineItem.unitPrice * lineItem.quantity;
+      current.orderIds.add(order.id);
+      current.orderCount = current.orderIds.size;
+      productStats.set(lineItem.productId, current);
+    }
+  }
+  const topSellingProducts: SellerProductStat[] = [...productStats.values()]
+    .map(({ orderIds: _orderIds, ...stat }) => ({
+      ...stat,
+      revenue: Math.round(stat.revenue * 100) / 100,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 8);
+
   return {
+    income: buildIncomeStats(sellerId),
+    itemsOrdered: sellerOrders.reduce(
+      (total, order) => total + order.lineItems
+        .filter((item) => item.sellerId === sellerId)
+        .reduce((quantity, item) => quantity + item.quantity, 0),
+      0,
+    ),
     revenue: Math.round(revenue * 100) / 100,
     revenueChange: 5.4,
     orders: sellerOrders.length,
@@ -773,6 +835,7 @@ export function buildSellerStats(sellerId: string): SellerStats {
     salesSeries,
     statusMix,
     topProducts,
+    topSellingProducts,
     lowStock: sellerProducts
       .filter((p) => p.stock < 10 && p.status === "published")
       .sort((a, b) => a.stock - b.stock)

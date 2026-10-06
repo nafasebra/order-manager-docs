@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/patterns/PageHeader";
+import { IncomeStatistics } from "@/components/patterns/IncomeStatistics";
 import { EmptyState } from "@/components/patterns/EmptyState";
+import { ErrorState } from "@/components/patterns/ErrorState";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/patterns/DataTable";
 import {
   actionsColumn,
@@ -26,7 +29,7 @@ import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { useSellerStats } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
 import { getSession } from "@/router";
-import type { Ticket } from "@/types";
+import type { SellerProductStat, Ticket } from "@/types";
 
 const DEMO_SELLER_ID = "seller-0001";
 
@@ -144,6 +147,77 @@ const ticketColumns: ColumnDef<Ticket>[] = [
   },
 ];
 
+const topSellingProductColumns: ColumnDef<SellerProductStat>[] = [
+  { accessorKey: "name", header: "Product" },
+  {
+    accessorKey: "sku",
+    header: "SKU",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.sku}</span>
+    ),
+  },
+  { accessorKey: "unitsSold", header: "Units sold" },
+  { accessorKey: "orderCount", header: "Orders" },
+  {
+    accessorKey: "revenue",
+    header: "Revenue",
+    cell: ({ row }) => formatMoney(row.original.revenue),
+  },
+];
+
+export function SellerAnalyticsPage() {
+  const session = getSession();
+  const [range, setRange] = useState<ChartRange>("30d");
+  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+  const stats = useSellerStats(session?.sellerId ?? DEMO_SELLER_ID, days);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Shop analytics"
+        description={`Sales, income, and product performance for ${session?.shopName ?? "your shop"}. Demo reporting period ends September 1, 2026.`}
+        actions={
+          <Select value={range} onValueChange={(value) => setRange(value as ChartRange)}>
+            <SelectTrigger className="w-[160px]" aria-label="Analytics period"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
+      {stats.isError ? <ErrorState title="Could not load shop analytics" /> : stats.isLoading || !stats.data ? (
+        <Skeleton className="h-[480px] w-full rounded-md" />
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard label="Delivered sales" value={formatMoney(stats.data.revenue)} />
+            <KpiCard label="Orders" value={String(stats.data.orders)} />
+            <KpiCard label="Avg. delivered order" value={formatMoney(stats.data.aov)} />
+            <KpiCard label="Items ordered" value={String(stats.data.itemsOrdered)} />
+          </div>
+          <IncomeStatistics data={stats.data.income} scope="shop" range={range} onRangeChange={setRange} />
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-3"><SalesOverviewChart data={stats.data.salesSeries} range={range} onRangeChange={setRange} /></div>
+            <div className="lg:col-span-2"><OrderStatusChart data={stats.data.statusMix} /></div>
+          </div>
+          {stats.data.topSellingProducts.length ? (
+            <>
+              <TopProductsChart title="Top products by ordered value" data={stats.data.topProducts} valueLabel="Ordered value" />
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold">Product performance</h2>
+                <p className="text-sm text-muted-foreground">Units and order values include all order statuses in the selected period.</p>
+                <DataTable columns={topSellingProductColumns} data={stats.data.topSellingProducts} dense />
+              </div>
+            </>
+          ) : <EmptyState title="No orders in this period" description="Choose a longer reporting period to explore your shop's performance." />}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function SellerOverviewPage() {
   const session = getSession();
   const sellerId = session?.sellerId ?? DEMO_SELLER_ID;
@@ -183,6 +257,8 @@ export function SellerOverviewPage() {
         />
       </div>
 
+      <IncomeStatistics data={stats.data?.income} scope="shop" />
+
       {stats.isLoading || !stats.data ? (
         <div className="grid gap-4 lg:grid-cols-5">
           <Skeleton className="h-[360px] rounded-md lg:col-span-3" />
@@ -204,9 +280,30 @@ export function SellerOverviewPage() {
           </div>
 
           <TopProductsChart
-            title="Top products"
+            title="Top products by revenue"
             data={stats.data.topProducts}
           />
+
+          <div>
+            <div className="mb-3">
+              <h2 className="text-lg font-semibold">Top-selling products</h2>
+              <p className="text-sm text-muted-foreground">
+                Units, orders, and revenue for this shop only.
+              </p>
+            </div>
+            {stats.data.topSellingProducts.length ? (
+              <DataTable
+                columns={topSellingProductColumns}
+                data={stats.data.topSellingProducts}
+                dense
+              />
+            ) : (
+              <EmptyState
+                title="No product sales yet"
+                description="Top-selling product statistics will appear after orders are placed."
+              />
+            )}
+          </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div>

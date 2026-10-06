@@ -25,6 +25,7 @@ import { RoleSelectPage } from "@/pages/auth/RoleSelectPage";
 import { SessionExpiredPage } from "@/pages/auth/SessionExpiredPage";
 import { ForbiddenPage, NotFoundPage } from "@/pages/system/ErrorPages";
 import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
+import { SellerTicketsListPage, SellerTicketDetailPage } from "@/pages/seller/SellerTicketPages";
 import { AdminAnalyticsPage } from "@/pages/admin/AdminAnalyticsPage";
 import { AdminOrdersListPage } from "@/pages/admin/AdminOrdersListPage";
 import { AdminOrderDetailPage } from "@/pages/admin/AdminOrderDetailPage";
@@ -82,6 +83,7 @@ import {
 } from "@/pages/admin/AdminSettingsPages";
 import {
   SellerOrdersListPage,
+  SellerAnalyticsPage,
   SellerOverviewPage,
   SellerProductsListPage,
   SellerSettingsPage,
@@ -745,6 +747,12 @@ const sellerProductsRoute = createRoute({
   component: SellerProductsListPage,
 });
 
+const sellerAnalyticsRoute = createRoute({
+  getParentRoute: () => sellerLayoutRoute,
+  path: "/analytics",
+  component: SellerAnalyticsPage,
+});
+
 const sellerOrdersRoute = createRoute({
   getParentRoute: () => sellerLayoutRoute,
   path: "/orders",
@@ -756,6 +764,25 @@ const sellerSettingsRoute = createRoute({
   getParentRoute: () => sellerLayoutRoute,
   path: "/settings",
   component: SellerSettingsPage,
+});
+
+const sellerTicketsRoute = createRoute({
+  getParentRoute: () => sellerLayoutRoute,
+  path: "/tickets",
+  validateSearch: listSearchSchema.extend({ status: z.enum(["open", "in_progress", "waiting", "resolved", "closed"]).optional() }),
+  component: function Page() {
+    const { search, onSearchChange } = useListSearchSync(sellerTicketsRoute);
+    return <SellerTicketsListPage search={search} onSearchChange={onSearchChange} />;
+  },
+});
+
+const sellerTicketDetailRoute = createRoute({
+  getParentRoute: () => sellerLayoutRoute,
+  path: "/tickets/$ticketId",
+  component: function Page() {
+    const { ticketId } = sellerTicketDetailRoute.useParams();
+    return <SellerTicketDetailPage key={ticketId} ticketId={ticketId} />;
+  },
 });
 
 const accountLayoutRoute = createRoute({
@@ -892,9 +919,12 @@ const routeTree = rootRoute.addChildren([
   ]),
   sellerLayoutRoute.addChildren([
     sellerIndexRoute,
+    sellerAnalyticsRoute,
     sellerProductsRoute,
     sellerOrdersRoute,
     sellerSettingsRoute,
+    sellerTicketsRoute,
+    sellerTicketDetailRoute,
   ]),
   accountLayoutRoute.addChildren([
     accountIndexRoute,
