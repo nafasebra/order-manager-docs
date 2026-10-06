@@ -11,6 +11,7 @@ import {
   Store,
   Package,
   Tags,
+  TicketPercent,
   Star,
   MessageCircleQuestion,
   Flag,
@@ -64,6 +65,7 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
         : []),
     ] as NavItem[]),
     section("Commerce", [
+      { label: "Coupons", to: "/admin/coupons", icon: TicketPercent },
       ...(canView(user, "orders")
         ? [{ label: "Orders", to: "/admin/orders", icon: ShoppingCart }]
         : []),

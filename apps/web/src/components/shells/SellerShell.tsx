@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import {
   LayoutDashboard,
   Package,
+  Boxes,
+  TicketPercent,
   ShoppingCart,
   Settings,
   BarChart3,
@@ -27,6 +29,8 @@ export function SellerShell({ user, onLogout, children }: SellerShellProps) {
           icon: BarChart3,
         },
         { label: "Products", to: "/seller/products", icon: Package },
+        { label: "Inventory", to: "/seller/inventory", icon: Boxes },
+        { label: "Coupons", to: "/seller/coupons", icon: TicketPercent },
         { label: "Orders", to: "/seller/orders", icon: ShoppingCart },
         {
           label: "Tickets",

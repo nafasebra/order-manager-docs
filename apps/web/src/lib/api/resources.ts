@@ -220,6 +220,37 @@ export function useProduct(id: string) {
   });
 }
 
+export function useSellerInventory(sellerId: string) {
+  return useQuery({
+    queryKey: ["seller-inventory", sellerId],
+    queryFn: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return products.filter((product) => product.sellerId === sellerId);
+    },
+    enabled: Boolean(sellerId),
+  });
+}
+
+export function useSellerStockMutation(sellerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, stock }: { id: string; stock: number }) => {
+      if (!Number.isSafeInteger(stock) || stock < 0) {
+        throw new Error("Quantity must be a non-negative whole number.");
+      }
+      const product = await getById(products.filter((item) => item.sellerId === sellerId), id);
+      product.stock = stock;
+      product.updatedAt = new Date().toISOString();
+      return product;
+    },
+    onSuccess: () => {
+      for (const key of ["seller-inventory", "seller-stats", "products"]) {
+        void qc.invalidateQueries({ queryKey: [key] });
+      }
+    },
+  });
+}
+
 type ProductMutation =
   | {
       action: "create";

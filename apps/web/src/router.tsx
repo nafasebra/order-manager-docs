@@ -26,6 +26,9 @@ import { SessionExpiredPage } from "@/pages/auth/SessionExpiredPage";
 import { ForbiddenPage, NotFoundPage } from "@/pages/system/ErrorPages";
 import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
 import { SellerTicketsListPage, SellerTicketDetailPage } from "@/pages/seller/SellerTicketPages";
+import { SellerInventoryPage } from "@/pages/seller/SellerInventoryPage";
+import { SellerCouponsPage } from "@/pages/seller/SellerCouponsPage";
+import { AdminCouponsPage } from "@/pages/admin/AdminCouponsPage";
 import { AdminAnalyticsPage } from "@/pages/admin/AdminAnalyticsPage";
 import { AdminOrdersListPage } from "@/pages/admin/AdminOrdersListPage";
 import { AdminOrderDetailPage } from "@/pages/admin/AdminOrderDetailPage";
@@ -456,6 +459,13 @@ const adminCategoriesRoute = createRoute({
   },
 });
 
+const adminCouponsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/coupons",
+  beforeLoad: ({ context }) => requireGrant(context, "marketing", "view"),
+  component: AdminCouponsPage,
+});
+
 const adminCategoryEditRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/categories/$categoryId/edit",
@@ -753,6 +763,18 @@ const sellerAnalyticsRoute = createRoute({
   component: SellerAnalyticsPage,
 });
 
+const sellerInventoryRoute = createRoute({
+  getParentRoute: () => sellerLayoutRoute,
+  path: "/inventory",
+  component: SellerInventoryPage,
+});
+
+const sellerCouponsRoute = createRoute({
+  getParentRoute: () => sellerLayoutRoute,
+  path: "/coupons",
+  component: SellerCouponsPage,
+});
+
 const sellerOrdersRoute = createRoute({
   getParentRoute: () => sellerLayoutRoute,
   path: "/orders",
@@ -892,6 +914,7 @@ const routeTree = rootRoute.addChildren([
     adminSellerDetailRoute,
     adminProductsRoute,
     adminCategoriesRoute,
+    adminCouponsRoute,
     adminCategoryEditRoute,
     adminProductNewRoute,
     adminProductDetailRoute,
@@ -920,6 +943,8 @@ const routeTree = rootRoute.addChildren([
   sellerLayoutRoute.addChildren([
     sellerIndexRoute,
     sellerAnalyticsRoute,
+    sellerInventoryRoute,
+    sellerCouponsRoute,
     sellerProductsRoute,
     sellerOrdersRoute,
     sellerSettingsRoute,
