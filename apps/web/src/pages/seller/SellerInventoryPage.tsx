@@ -35,7 +35,7 @@ export function SellerInventoryPage() {
     { accessorKey: "sku", header: "SKU" },
     { accessorKey: "status", header: "Listing", cell: ({ row }) => <StatusChip kind="content" status={row.original.status} /> },
     { accessorKey: "stock", header: "Quantity", cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.stock}</span> },
-    { id: "stock-status", header: "Stock", cell: ({ row }) => <Badge variant={row.original.stock === 0 ? "destructive" : "secondary"}>{row.original.stock === 0 ? "Out of stock" : row.original.stock < 10 ? "Low stock" : "In stock"}</Badge> },
+    { id: "stock-status", accessorFn: (row) => row.stock === 0 ? "Out of stock" : row.stock < 10 ? "Low stock" : "In stock", header: "Stock", cell: ({ row }) => <Badge variant={row.original.stock === 0 ? "destructive" : "secondary"}>{row.original.stock === 0 ? "Out of stock" : row.original.stock < 10 ? "Low stock" : "In stock"}</Badge> },
     { id: "adjust", header: "", cell: ({ row }) => <Button variant="outline" size="sm" onClick={() => { setSelected(row.original); setQuantity(String(row.original.stock)); }}>Update stock</Button> },
   ];
   const valid = quantity.trim() !== "" && Number.isSafeInteger(Number(quantity)) && Number(quantity) >= 0;

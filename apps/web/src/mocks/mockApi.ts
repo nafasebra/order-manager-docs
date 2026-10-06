@@ -52,7 +52,7 @@ export async function listResource<T extends object>(
       if (av === bv) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
-      const cmp = av < bv ? -1 : 1;
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
       return desc ? -cmp : cmp;
     });
   }

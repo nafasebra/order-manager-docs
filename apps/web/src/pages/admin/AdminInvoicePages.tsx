@@ -43,14 +43,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useInvoice,
@@ -302,24 +294,11 @@ export function AdminInvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
           },
         ]}
       />
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Description</TableHead>
-            <TableHead>Qty</TableHead>
-            <TableHead>Unit</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.lines.map((line) => (
-            <TableRow key={line.id}>
-              <TableCell>{line.description}</TableCell>
-              <TableCell>{line.quantity}</TableCell>
-              <TableCell>{formatMoney(line.unitPrice)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <DataTable data={data.lines} columns={[
+        { accessorKey: "description", header: "Description" },
+        { accessorKey: "quantity", header: "Qty" },
+        { accessorKey: "unitPrice", header: "Unit", cell: ({ row }) => formatMoney(row.original.unitPrice) },
+      ]} />
       <ConfirmDialog
         open={voidOpen}
         onOpenChange={setVoidOpen}

@@ -58,14 +58,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useBuyer,
@@ -757,24 +749,11 @@ export function BuyerOrderDetailPage({ orderId }: { orderId: string }) {
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">Line items</h2>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product</TableHead>
-              <TableHead>Qty</TableHead>
-              <TableHead>Unit</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.lineItems.map((li) => (
-              <TableRow key={li.id}>
-                <TableCell>{li.productName}</TableCell>
-                <TableCell>{li.quantity}</TableCell>
-                <TableCell>{formatMoney(li.unitPrice)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable data={data.lineItems} columns={[
+          { accessorKey: "productName", header: "Product" },
+          { accessorKey: "quantity", header: "Qty" },
+          { accessorKey: "unitPrice", header: "Unit", cell: ({ row }) => formatMoney(row.original.unitPrice) },
+        ]} />
       </div>
 
       <div>

@@ -43,14 +43,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAdmin, useAdmins, useMockMutation } from "@/lib/api/resources";
 import { formatDate } from "@/lib/formats";
@@ -290,39 +282,12 @@ function PermissionMatrix({
   }
 
   return (
-    <div className="overflow-auto rounded-md border border-border">
-      <Table className="text-[13px]">
-        <TableHeader>
-          <TableRow>
-            <TableHead className="sticky left-0 bg-card">Area</TableHead>
-            {ACTIONS.map((a) => (
-              <TableHead key={a} className="whitespace-nowrap capitalize">
-                {a.replace("_", " ")}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {AREAS.map((area) => (
-            <TableRow key={area}>
-              <TableCell className="sticky left-0 bg-card font-medium capitalize">
-                {area.replace("_", " ")}
-              </TableCell>
-              {ACTIONS.map((action) => (
-                <TableCell key={action}>
-                  <Checkbox
-                    checked={has(area, action)}
-                    disabled={readOnly}
-                    onCheckedChange={() => toggle(area, action)}
-                    aria-label={`${area} ${action}`}
-                  />
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <DataTable dense data={AREAS.map((area) => ({ area }))} columns={[
+      { accessorKey: "area", header: "Area", cell: ({ row }) => <span className="font-medium capitalize">{row.original.area.replace(/_/g, " ")}</span> },
+      ...ACTIONS.map((action) => ({ id: action, header: action.replace(/_/g, " "), accessorFn: (row: { area: PermissionArea }) => has(row.area, action),
+        cell: ({ row }: { row: { original: { area: PermissionArea } } }) => <Checkbox checked={has(row.original.area, action)} disabled={readOnly} onCheckedChange={() => toggle(row.original.area, action)} aria-label={`${row.original.area} ${action}`} />,
+      })),
+    ]} />
   );
 }
 

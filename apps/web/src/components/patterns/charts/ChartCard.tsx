@@ -14,14 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/patterns/DataTable";
 import { cn } from "@/lib/utils";
 
 export type ChartRange = "7d" | "30d" | "90d";
@@ -94,24 +87,14 @@ export function ChartCard({
       </CardHeader>
       <CardContent>
         {showTable && hasFallback ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {tableColumns!.map((col) => (
-                  <TableHead key={col.key}>{col.label}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tableRows!.map((row, i) => (
-                <TableRow key={i}>
-                  {tableColumns!.map((col) => (
-                    <TableCell key={col.key}>{row[col.key]}</TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable<TableRowData> data={tableRows!} columns={tableColumns!.map((column) => ({ accessorKey: column.key, header: column.label,
+            sortingFn: (a, b) => {
+              const av = a.original[column.key]; const bv = b.original[column.key];
+              const numeric = (value: string | number) => typeof value === "number" ? value : /[£$€]/.test(value) ? Number(value.replace(/[^\d.-]/g, "")) : NaN;
+              const an = numeric(av); const bn = numeric(bv);
+              return Number.isFinite(an) && Number.isFinite(bn) ? an - bn : String(av).localeCompare(String(bv), undefined, { numeric: true });
+            },
+          }))} />
         ) : (
           children
         )}

@@ -8,6 +8,7 @@ import {
 import { QueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Toaster } from "@/components/ui/sonner";
+import { TableSortProvider } from "@/components/patterns/TableSortProvider";
 import { AdminShell } from "@/components/shells/AdminShell";
 import { SellerShell } from "@/components/shells/SellerShell";
 import { BuyerShell } from "@/components/shells/BuyerShell";
@@ -141,7 +142,7 @@ function useListSearchSync<T extends ListParams>(
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: () => (
     <>
-      <Outlet />
+      <TableSortProvider><Outlet /></TableSortProvider>
       <Toaster />
     </>
   ),

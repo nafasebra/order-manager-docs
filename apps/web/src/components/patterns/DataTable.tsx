@@ -1,6 +1,10 @@
+import { useContext, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { TableSortContext } from "@/components/patterns/TableSortProvider";
 import {
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type OnChangeFn,
@@ -47,19 +51,39 @@ export function DataTable<TData>({
   emptyMessage = "No results.",
   className,
 }: DataTableProps<TData>) {
+  const remote = useContext(TableSortContext);
+  const [localSorting, setLocalSorting] = useState<SortingState>([]);
+  const currentSorting = sorting ?? (remote ? (remote.sort ? [{ id: remote.sort.replace(/^-/, ""), desc: remote.sort.startsWith("-") }] : []) : localSorting);
+  const changeSorting: OnChangeFn<SortingState> = onSortingChange ?? ((updater) => {
+    const next = typeof updater === "function" ? updater(currentSorting) : updater;
+    if (remote) remote.setSort(next.length ? `${next[0].desc ? "-" : ""}${next[0].id}` : undefined);
+    else setLocalSorting(next);
+  });
   const table = useReactTable({
     data,
     columns,
     pageCount,
     state: {
       pagination,
-      sorting,
+      sorting: currentSorting,
     },
     onPaginationChange,
-    onSortingChange,
+    onSortingChange: changeSorting,
     manualPagination: true,
-    manualSorting: true,
+    manualSorting: Boolean(remote),
+    enableMultiSort: false,
+    sortDescFirst: false,
+    defaultColumn: { sortingFn: (a, b, id) => {
+      const av = a.getValue<unknown>(id);
+      const bv = b.getValue<unknown>(id);
+      if (av == null || av === "") return bv == null || bv === "" ? 0 : 1;
+      if (bv == null || bv === "") return -1;
+      if (typeof av === "number" && typeof bv === "number") return av - bv;
+      if (typeof av === "boolean" && typeof bv === "boolean") return Number(av) - Number(bv);
+      return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
+    } },
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   });
 
   return (
@@ -69,10 +93,13 @@ export function DataTable<TData>({
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
+                <TableHead key={header.id} aria-sort={header.column.getCanSort() ? (header.column.getIsSorted() === "asc" ? "ascending" : header.column.getIsSorted() === "desc" ? "descending" : "none") : undefined}>
                   {header.isPlaceholder
                     ? null
-                    : flexRender(
+                    : header.column.getCanSort() ? <button type="button" className="flex w-full items-center gap-2 py-2 text-left" onClick={header.column.getToggleSortingHandler()}>
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getIsSorted() === "asc" ? <ArrowUp className="h-3 w-3 shrink-0" /> : header.column.getIsSorted() === "desc" ? <ArrowDown className="h-3 w-3 shrink-0" /> : <ArrowUpDown className="h-3 w-3 shrink-0 opacity-50" />}
+                      </button> : flexRender(
                         header.column.columnDef.header,
                         header.getContext(),
                       )}

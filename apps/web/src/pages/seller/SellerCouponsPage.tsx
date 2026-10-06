@@ -38,10 +38,10 @@ export function SellerCouponsPage() {
   function update<K extends keyof CouponValues>(key: K, value: CouponValues[K]) { setValues((previous) => ({ ...previous, [key]: value })); }
   const columns: ColumnDef<SellerCoupon>[] = [
     { accessorKey: "code", header: "Code", cell: ({ row }) => <span className="font-mono font-medium">{row.original.code}</span> },
-    { id: "discount", header: "Discount", cell: ({ row }) => row.original.type === "free_shipping" ? "Free shipping" : row.original.type === "percentage" ? `${row.original.value}%` : formatMoney(row.original.value) },
-    { id: "usage", header: "Usage", cell: ({ row }) => `${row.original.usageCount} / ${row.original.usageLimit ?? "Unlimited"}` },
+    { id: "discount", accessorFn: (row) => row.value, header: "Discount", cell: ({ row }) => row.original.type === "free_shipping" ? "Free shipping" : row.original.type === "percentage" ? `${row.original.value}%` : formatMoney(row.original.value) },
+    { id: "usage", accessorFn: (row) => row.usageCount, header: "Usage", cell: ({ row }) => `${row.original.usageCount} / ${row.original.usageLimit ?? "Unlimited"}` },
     { accessorKey: "enabled", header: "Status", cell: ({ row }) => <Badge variant={row.original.enabled ? "secondary" : "outline"}>{row.original.enabled ? "Enabled" : "Disabled"}</Badge> },
-    { id: "schedule", header: "Schedule", cell: ({ row }) => `${row.original.startsAt || "Any time"} → ${row.original.endsAt || "No expiry"}` },
+    { id: "schedule", accessorFn: (row) => row.startsAt, header: "Schedule", cell: ({ row }) => `${row.original.startsAt || "Any time"} → ${row.original.endsAt || "No expiry"}` },
     actionsColumn<SellerCoupon>((coupon) => [{ label: "Edit coupon", onSelect: () => startEdit(coupon) }, { label: "Delete coupon", destructive: true, onSelect: () => setDeleting(coupon) }]),
   ];
   return (
