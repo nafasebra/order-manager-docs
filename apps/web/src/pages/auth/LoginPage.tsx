@@ -117,8 +117,14 @@ export function LoginPage({
                     <FormLabel>Panel</FormLabel>
                     <Select
                       onValueChange={(panel: ActorType) => {
+                        field.onChange(panel);
                         form.reset({ panel, ...demoCredentials[panel] });
                         setError(null);
+                        void navigate({
+                          to: "/auth/login",
+                          search: { panel },
+                          replace: true,
+                        });
                       }}
                       value={field.value}
                     >
