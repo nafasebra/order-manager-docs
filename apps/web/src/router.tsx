@@ -30,6 +30,7 @@ import { SellerTicketsListPage, SellerTicketDetailPage } from "@/pages/seller/Se
 import { SellerInventoryPage } from "@/pages/seller/SellerInventoryPage";
 import { SellerCouponsPage } from "@/pages/seller/SellerCouponsPage";
 import { AdminCouponsPage } from "@/pages/admin/AdminCouponsPage";
+import { SellerProductsPage } from "@/pages/seller/SellerProductsPage";
 import { AdminAnalyticsPage } from "@/pages/admin/AdminAnalyticsPage";
 import { AdminOrdersListPage } from "@/pages/admin/AdminOrdersListPage";
 import { AdminOrderDetailPage } from "@/pages/admin/AdminOrderDetailPage";
@@ -44,7 +45,6 @@ import {
   AdminCategoryFormPage,
   AdminCategoriesListPage,
   AdminProductDetailPage,
-  AdminProductFormPage,
   AdminProductsListPage,
   AdminQuestionDetailPage,
   AdminQuestionsListPage,
@@ -89,7 +89,6 @@ import {
   SellerOrdersListPage,
   SellerAnalyticsPage,
   SellerOverviewPage,
-  SellerProductsListPage,
   SellerSettingsPage,
 } from "@/pages/seller/SellerPages";
 import {
@@ -477,15 +476,6 @@ const adminCategoryEditRoute = createRoute({
   },
 });
 
-const adminProductNewRoute = createRoute({
-  getParentRoute: () => adminLayoutRoute,
-  path: "/products/new",
-  beforeLoad: ({ context }) => requireGrant(context, "products", "create"),
-  component: function Page() {
-    return <AdminProductFormPage />;
-  },
-});
-
 const adminProductDetailRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/products/$productId",
@@ -493,16 +483,6 @@ const adminProductDetailRoute = createRoute({
   component: function Page() {
     const { productId } = adminProductDetailRoute.useParams();
     return <AdminProductDetailPage productId={productId} />;
-  },
-});
-
-const adminProductEditRoute = createRoute({
-  getParentRoute: () => adminLayoutRoute,
-  path: "/products/$productId/edit",
-  beforeLoad: ({ context }) => requireGrant(context, "products", "edit"),
-  component: function Page() {
-    const { productId } = adminProductEditRoute.useParams();
-    return <AdminProductFormPage productId={productId} />;
   },
 });
 
@@ -755,7 +735,10 @@ const sellerProductsRoute = createRoute({
   getParentRoute: () => sellerLayoutRoute,
   path: "/products",
   validateSearch: listSearchSchema,
-  component: SellerProductsListPage,
+  component: function Page() {
+    const { search, onSearchChange } = useListSearchSync(sellerProductsRoute);
+    return <SellerProductsPage search={search} onSearchChange={onSearchChange} />;
+  },
 });
 
 const sellerAnalyticsRoute = createRoute({
@@ -917,9 +900,7 @@ const routeTree = rootRoute.addChildren([
     adminCategoriesRoute,
     adminCouponsRoute,
     adminCategoryEditRoute,
-    adminProductNewRoute,
     adminProductDetailRoute,
-    adminProductEditRoute,
     adminReviewsRoute,
     adminReviewDetailRoute,
     adminQuestionsRoute,

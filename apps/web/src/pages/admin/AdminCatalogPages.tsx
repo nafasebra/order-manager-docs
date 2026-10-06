@@ -20,7 +20,6 @@ import { ErrorState } from "@/components/patterns/ErrorState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -39,14 +38,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -60,7 +51,6 @@ import {
   useCategories,
   useMockMutation,
   useProduct,
-  useProductMutation,
   useProducts,
   useQuestion,
   useQuestions,
@@ -70,6 +60,8 @@ import {
   useReviews,
 } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
+import { getSession } from "@/router";
+import { useProductModeration, productSales, productReviews } from "@/lib/api/productManagement";
 import type {
   Category,
   ListParams,
@@ -381,21 +373,14 @@ const productColumns: ColumnDef<Product>[] = [
 export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
   const [q, setQ] = useState(String(search.q ?? ""));
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const debouncedQ = useDebouncedValue(q);
   const query = useProducts({ ...search, q: debouncedQ || undefined });
-  const mutate = useProductMutation();
 
   return (
     <div>
       <PageHeader
         title="Products"
-        description="Platform catalog."
-        actions={
-          <Button asChild>
-            <Link to="/admin/products/new">Create product</Link>
-          </Button>
-        }
+        description="Inspect seller listings, sales, and reviews. Sellers manage product information."
       />
       <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search products…">
         <Select
@@ -427,20 +412,7 @@ export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
                   params: { productId: row.id },
                 }),
             },
-            {
-              label: "Edit product",
-              onSelect: () =>
-                void navigate({
-                  to: "/admin/products/$productId/edit",
-                  params: { productId: row.id },
-                }),
-            },
             copyIdAction(row.id),
-            {
-              label: "Delete product",
-              destructive: true,
-              onSelect: () => setProductToDelete(row),
-            },
           ]),
         ]}
         data={query.data?.items ?? []}
@@ -459,232 +431,38 @@ export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
         total={query.data?.total ?? 0}
         onPageChange={(page) => onSearchChange({ page })}
       />
-      <ConfirmDialog
-        open={Boolean(productToDelete)}
-        onOpenChange={(open) => {
-          if (!open) setProductToDelete(null);
-        }}
-        title="Delete product"
-        description={`Delete ${productToDelete?.name ?? "this product"}? This action cannot be undone.`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={async () => {
-          if (!productToDelete) return;
-          await mutate.mutateAsync({ action: "delete", id: productToDelete.id });
-          toast.success("Product deleted");
-        }}
-      />
+
     </div>
   );
 }
 
-const productSchema = z.object({
-  name: z.string().min(1),
-  sku: z.string().min(1),
-  price: z.coerce.number().positive(),
-  stock: z.coerce.number().int().min(0),
-  description: z.string().min(1),
-});
-
-export function AdminProductFormPage({
-  productId,
-}: {
-  productId?: string;
-}) {
-  const navigate = useNavigate();
-  const existing = useProduct(productId ?? "");
-  const mutate = useProductMutation();
-  const form = useForm<z.infer<typeof productSchema>>({
-    resolver: zodResolver(productSchema),
-    values: existing.data
-      ? {
-          name: existing.data.name,
-          sku: existing.data.sku,
-          price: existing.data.price,
-          stock: existing.data.stock,
-          description: existing.data.description,
-        }
-      : undefined,
-    defaultValues: {
-      name: "",
-      sku: "",
-      price: 0,
-      stock: 0,
-      description: "",
-    },
-  });
-
-  return (
-    <div className="mx-auto max-w-xl space-y-6">
-      <PageHeader
-        title={productId ? "Edit product" : "Create product"}
-        description="Catalog details (mock)."
-      />
-      <Form {...form}>
-        <form
-          className="space-y-4"
-          onSubmit={form.handleSubmit(async (values) => {
-            try {
-              if (productId) {
-                await mutate.mutateAsync({
-                  action: "update",
-                  id: productId,
-                  ...values,
-                });
-                toast.success("Product updated");
-              } else {
-                await mutate.mutateAsync({ action: "create", ...values });
-                toast.success("Product created");
-              }
-              void navigate({ to: "/admin/products" });
-            } catch (error) {
-              toast.error(
-                error instanceof Error ? error.message : "Could not save product",
-              );
-            }
-          })}
-        >
-          {(["name", "sku"] as const).map((name) => (
-            <FormField
-              key={name}
-              control={form.control}
-              name={name}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{name === "sku" ? "SKU" : "Name"}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
-          <div className="grid grid-cols-2 gap-3">
-            <FormField
-              control={form.control}
-              name="price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Price</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="stock"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Stock</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <FormField
-            control={form.control}
-            name="description"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Description</FormLabel>
-                <FormControl>
-                  <Textarea rows={4} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="flex gap-2">
-            <Button type="submit">Save</Button>
-            <Button type="button" variant="outline" asChild>
-              <Link to="/admin/products">Cancel</Link>
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
-  );
-}
 
 export function AdminProductDetailPage({ productId }: { productId: string }) {
-  const navigate = useNavigate();
   const { data, isLoading, isError } = useProduct(productId);
-  const mutate = useProductMutation();
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const mutation = useProductModeration(getSession()?.displayName ?? "Admin preview");
+  const [moderationOpen, setModerationOpen] = useState(false);
   if (isLoading) return <Skeleton className="h-80 w-full" />;
   if (isError || !data) return <ErrorState title="Product not found" />;
-
-  return (
-    <div className="space-y-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to="/admin/products">Products</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{data.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <PageHeader
-        title={data.name}
-        description={data.sku}
-        actions={
-          <>
-            <StatusChip kind="content" status={data.status} />
-            <Button asChild variant="outline">
-              <Link
-                to="/admin/products/$productId/edit"
-                params={{ productId: data.id }}
-              >
-                Edit
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
-              Delete
-            </Button>
-          </>
-        }
-      />
-      <DescriptionList
-        items={[
-          { label: "Seller", value: data.sellerName },
-          { label: "Category", value: data.category },
-          { label: "Price", value: formatMoney(data.price, data.currency) },
-          { label: "Stock", value: data.stock },
-          { label: "Updated", value: formatDate(data.updatedAt) },
-        ]}
-      />
-      <p className="text-sm text-muted-foreground">{data.description}</p>
-      <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        title="Delete product"
-        description={`Delete ${data.name}? This action cannot be undone.`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={async () => {
-          await mutate.mutateAsync({ action: "delete", id: data.id });
-          toast.success("Product deleted");
-          void navigate({ to: "/admin/products" });
-        }}
-      />
-    </div>
-  );
+  return <div className="space-y-6">
+    <Button variant="outline" asChild><Link to="/admin/products">Back to products</Link></Button>
+    <PageHeader title={data.name} description={data.sku} actions={<Button variant={data.moderation?.blocked ? "outline" : "destructive"} onClick={() => setModerationOpen(true)}>{data.moderation?.blocked ? "Lift restriction" : "Restrict listing"}</Button>} />
+    <DescriptionList items={[
+      { label: "Seller", value: <Link to="/admin/sellers/$sellerId" params={{ sellerId: data.sellerId }} className="text-primary hover:underline">{data.sellerName}</Link> },
+      { label: "Category", value: data.category }, { label: "Price", value: formatMoney(data.price, data.currency) },
+      { label: "Stock", value: data.stock }, { label: "Units sold (delivered)", value: productSales(data.id) },
+      { label: "Listing status", value: data.status }, { label: "Platform", value: data.moderation?.blocked ? "Restricted" : "Allowed" },
+      { label: "Updated", value: formatDate(data.updatedAt) },
+    ]} />
+    <p className="text-sm text-muted-foreground">{data.description}</p>
+    {data.moderation && <p className="text-sm">Last moderation: {data.moderation.reason} · {data.moderation.by} · {formatDate(data.moderation.at)}</p>}
+    <div className="space-y-3"><h2 className="text-lg font-semibold">Product reviews</h2><DataTable data={productReviews(data.id)} columns={[
+      { accessorKey: "buyerName", header: "Buyer" }, { accessorKey: "rating", header: "Rating" }, { accessorKey: "title", header: "Title" }, { accessorKey: "body", header: "Review" }, { accessorKey: "status", header: "Status" },
+      actionsColumn<Review>((review) => [{ label: "View review", onSelect: () => { window.location.href = `/admin/reviews/${review.id}`; } }]),
+    ]} emptyMessage="No reviews yet." /></div>
+    <ConfirmDialog open={moderationOpen} onOpenChange={setModerationOpen} title={data.moderation?.blocked ? "Lift platform restriction" : "Restrict listing"} description="Restricting unpublishes the listing. Lifting a restriction lets the seller publish it again." requireReason onConfirm={async (reason) => {
+      try { await mutation.mutateAsync({ id: data.id, blocked: !data.moderation?.blocked, reason: reason ?? "" }); toast.success("Platform restriction updated"); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update restriction"); }
+    }} />
+  </div>;
 }
 
 function ModerationListPage<T extends { id: string }>({

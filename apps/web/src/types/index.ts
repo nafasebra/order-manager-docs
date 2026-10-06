@@ -190,6 +190,7 @@ export type Seller = {
 };
 
 export type Product = {
+  moderation?: { blocked: boolean; reason: string; by: string; at: string };
   id: string;
   name: string;
   sku: string;

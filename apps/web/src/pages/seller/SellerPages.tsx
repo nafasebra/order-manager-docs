@@ -369,16 +369,6 @@ export function SellerOverviewPage() {
   );
 }
 
-export function SellerProductsListPage() {
-  return (
-    <PlaceholderPage
-      title="Products"
-      description="Your catalog only."
-      actionLabel="Create product"
-    />
-  );
-}
-
 export function SellerOrdersListPage() {
   return (
     <PlaceholderPage
