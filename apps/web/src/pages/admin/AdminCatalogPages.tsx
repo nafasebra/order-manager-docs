@@ -23,6 +23,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Form,
   FormControl,
   FormField,
@@ -47,8 +55,12 @@ import {
 } from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
+  useCategory,
+  useCategoryMutation,
+  useCategories,
   useMockMutation,
   useProduct,
+  useProductMutation,
   useProducts,
   useQuestion,
   useQuestions,
@@ -59,6 +71,7 @@ import {
 } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
 import type {
+  Category,
   ListParams,
   Product,
   ProductReport,
@@ -70,6 +83,281 @@ type ListProps = {
   search: ListParams;
   onSearchChange: (next: Partial<ListParams>) => void;
 };
+
+const categorySchema = z.object({
+  name: z.string().trim().min(1, "Name is required"),
+  slug: z
+    .string()
+    .trim()
+    .min(1, "Slug is required")
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "Use lowercase letters, numbers, and hyphens",
+    ),
+});
+
+const categoryColumns: ColumnDef<Category>[] = [
+  { accessorKey: "name", header: "Name" },
+  { accessorKey: "slug", header: "Slug" },
+  { accessorKey: "productCount", header: "Products" },
+  {
+    accessorKey: "publishedProductCount",
+    header: "Published products",
+  },
+];
+
+export function AdminCategoriesListPage({
+  search,
+  onSearchChange,
+}: ListProps) {
+  const navigate = useNavigate();
+  const [q, setQ] = useState(String(search.q ?? ""));
+  const [createOpen, setCreateOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const debouncedQ = useDebouncedValue(q);
+  const query = useCategories({ ...search, q: debouncedQ || undefined });
+  const mutate = useCategoryMutation();
+  const createForm = useForm<z.infer<typeof categorySchema>>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: { name: "", slug: "" },
+  });
+
+  function setCreateDialogOpen(open: boolean) {
+    setCreateOpen(open);
+    if (!open) createForm.reset();
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title="Categories"
+        description="Product categories across the marketplace."
+        actions={
+          <Button type="button" onClick={() => setCreateDialogOpen(true)}>
+            Create category
+          </Button>
+        }
+      />
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search categories…"
+      />
+      <DataTable
+        columns={[
+          ...categoryColumns,
+          actionsColumn<Category>((row) => [
+            {
+              label: "Edit category",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/categories/$categoryId/edit",
+                  params: { categoryId: row.id },
+                }),
+            },
+            copyIdAction(row.id),
+            {
+              label: "Delete category",
+              destructive: true,
+              onSelect: () => setCategoryToDelete(row),
+            },
+          ]),
+        ]}
+        data={query.data?.items ?? []}
+        isLoading={query.isLoading}
+        dense
+      />
+      <ListPagination
+        page={Number(search.page ?? 1)}
+        pageSize={Number(search.pageSize ?? 25)}
+        total={query.data?.total ?? 0}
+        onPageChange={(page) => onSearchChange({ page })}
+      />
+      <Dialog open={createOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create category</DialogTitle>
+            <DialogDescription>
+              Add a category to organize products in the marketplace catalog.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...createForm}>
+            <form
+              className="space-y-4"
+              onSubmit={createForm.handleSubmit(async (values) => {
+                try {
+                  await mutate.mutateAsync({ action: "create", ...values });
+                  toast.success("Category created");
+                  setCreateDialogOpen(false);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not create category",
+                  );
+                }
+              })}
+            >
+              <FormField
+                control={createForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input autoFocus {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={createForm.control}
+                name="slug"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Slug</FormLabel>
+                    <FormControl>
+                      <Input placeholder="category-name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCreateDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={mutate.isPending}>
+                  Create category
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      <ConfirmDialog
+        open={Boolean(categoryToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setCategoryToDelete(null);
+        }}
+        title="Delete category"
+        description={
+          categoryToDelete?.productCount
+            ? `${categoryToDelete.name} has ${categoryToDelete.productCount} products. Move or remove them before deleting this category.`
+            : `Delete ${categoryToDelete?.name ?? "this category"}? This action cannot be undone.`
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => {
+          if (!categoryToDelete) return;
+          try {
+            await mutate.mutateAsync({
+              action: "delete",
+              id: categoryToDelete.id,
+            });
+            toast.success("Category deleted");
+          } catch (error) {
+            toast.error(
+              error instanceof Error ? error.message : "Could not delete category",
+            );
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+export function AdminCategoryFormPage({ categoryId }: { categoryId?: string }) {
+  const navigate = useNavigate();
+  const existing = useCategory(categoryId ?? "");
+  const mutate = useCategoryMutation();
+  const form = useForm<z.infer<typeof categorySchema>>({
+    resolver: zodResolver(categorySchema),
+    values: existing.data
+      ? { name: existing.data.name, slug: existing.data.slug }
+      : undefined,
+    defaultValues: { name: "", slug: "" },
+  });
+
+  if (categoryId && existing.isLoading) {
+    return <Skeleton className="mx-auto h-72 w-full max-w-xl" />;
+  }
+  if (categoryId && (existing.isError || !existing.data)) {
+    return <ErrorState title="Category not found" />;
+  }
+
+  return (
+    <div className="mx-auto max-w-xl space-y-6">
+      <PageHeader
+        title={categoryId ? "Edit category" : "Create category"}
+        description="Organize products in the marketplace catalog."
+      />
+      <Form {...form}>
+        <form
+          className="space-y-4"
+          onSubmit={form.handleSubmit(async (values) => {
+            try {
+              if (categoryId) {
+                await mutate.mutateAsync({
+                  action: "update",
+                  id: categoryId,
+                  ...values,
+                });
+                toast.success("Category updated");
+              } else {
+                await mutate.mutateAsync({ action: "create", ...values });
+                toast.success("Category created");
+              }
+              void navigate({ to: "/admin/categories" });
+            } catch (error) {
+              toast.error(
+                error instanceof Error ? error.message : "Could not save category",
+              );
+            }
+          })}
+        >
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Name</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="slug"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Slug</FormLabel>
+                <FormControl>
+                  <Input placeholder="category-name" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={mutate.isPending}>Save</Button>
+            <Button type="button" variant="outline" asChild>
+              <Link to="/admin/categories">Cancel</Link>
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </div>
+  );
+}
 
 const productColumns: ColumnDef<Product>[] = [
   { accessorKey: "name", header: "Name" },
@@ -93,8 +381,10 @@ const productColumns: ColumnDef<Product>[] = [
 export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
   const [q, setQ] = useState(String(search.q ?? ""));
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const debouncedQ = useDebouncedValue(q);
   const query = useProducts({ ...search, q: debouncedQ || undefined });
+  const mutate = useProductMutation();
 
   return (
     <div>
@@ -137,7 +427,20 @@ export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
                   params: { productId: row.id },
                 }),
             },
+            {
+              label: "Edit product",
+              onSelect: () =>
+                void navigate({
+                  to: "/admin/products/$productId/edit",
+                  params: { productId: row.id },
+                }),
+            },
             copyIdAction(row.id),
+            {
+              label: "Delete product",
+              destructive: true,
+              onSelect: () => setProductToDelete(row),
+            },
           ]),
         ]}
         data={query.data?.items ?? []}
@@ -155,6 +458,21 @@ export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
         pageSize={Number(search.pageSize ?? 25)}
         total={query.data?.total ?? 0}
         onPageChange={(page) => onSearchChange({ page })}
+      />
+      <ConfirmDialog
+        open={Boolean(productToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setProductToDelete(null);
+        }}
+        title="Delete product"
+        description={`Delete ${productToDelete?.name ?? "this product"}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => {
+          if (!productToDelete) return;
+          await mutate.mutateAsync({ action: "delete", id: productToDelete.id });
+          toast.success("Product deleted");
+        }}
       />
     </div>
   );
@@ -175,7 +493,7 @@ export function AdminProductFormPage({
 }) {
   const navigate = useNavigate();
   const existing = useProduct(productId ?? "");
-  const mutate = useMockMutation("products");
+  const mutate = useProductMutation();
   const form = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
     values: existing.data
@@ -206,9 +524,24 @@ export function AdminProductFormPage({
         <form
           className="space-y-4"
           onSubmit={form.handleSubmit(async (values) => {
-            await mutate.mutateAsync({ ...values, id: productId });
-            toast.success(productId ? "Product updated (mock)" : "Product created (mock)");
-            void navigate({ to: "/admin/products" });
+            try {
+              if (productId) {
+                await mutate.mutateAsync({
+                  action: "update",
+                  id: productId,
+                  ...values,
+                });
+                toast.success("Product updated");
+              } else {
+                await mutate.mutateAsync({ action: "create", ...values });
+                toast.success("Product created");
+              }
+              void navigate({ to: "/admin/products" });
+            } catch (error) {
+              toast.error(
+                error instanceof Error ? error.message : "Could not save product",
+              );
+            }
           })}
         >
           {(["name", "sku"] as const).map((name) => (
@@ -281,7 +614,10 @@ export function AdminProductFormPage({
 }
 
 export function AdminProductDetailPage({ productId }: { productId: string }) {
+  const navigate = useNavigate();
   const { data, isLoading, isError } = useProduct(productId);
+  const mutate = useProductMutation();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   if (isLoading) return <Skeleton className="h-80 w-full" />;
   if (isError || !data) return <ErrorState title="Product not found" />;
 
@@ -314,6 +650,13 @@ export function AdminProductDetailPage({ productId }: { productId: string }) {
                 Edit
               </Link>
             </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete
+            </Button>
           </>
         }
       />
@@ -327,6 +670,19 @@ export function AdminProductDetailPage({ productId }: { productId: string }) {
         ]}
       />
       <p className="text-sm text-muted-foreground">{data.description}</p>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete product"
+        description={`Delete ${data.name}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={async () => {
+          await mutate.mutateAsync({ action: "delete", id: data.id });
+          toast.success("Product deleted");
+          void navigate({ to: "/admin/products" });
+        }}
+      />
     </div>
   );
 }

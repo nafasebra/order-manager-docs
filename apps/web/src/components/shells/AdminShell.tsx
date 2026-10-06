@@ -10,6 +10,7 @@ import {
   Users,
   Store,
   Package,
+  Tags,
   Star,
   MessageCircleQuestion,
   Flag,
@@ -90,6 +91,9 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
     section("Catalog", [
       ...(canView(user, "products")
         ? [{ label: "Products", to: "/admin/products", icon: Package }]
+        : []),
+      ...(canView(user, "products")
+        ? [{ label: "Categories", to: "/admin/categories", icon: Tags }]
         : []),
       ...(canView(user, "reviews")
         ? [{ label: "Reviews", to: "/admin/reviews", icon: Star }]

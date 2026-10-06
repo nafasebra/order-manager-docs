@@ -5,6 +5,7 @@ import type {
   BlogPost,
   Buyer,
   Campaign,
+  Category,
   CrmContact,
   Invoice,
   Order,
@@ -145,7 +146,7 @@ const shopNames = [
   "Lumen Living",
   "Forge Tools",
 ];
-const categories = [
+const categoryNames = [
   "Electronics",
   "Home",
   "Fashion",
@@ -218,12 +219,22 @@ export const products: Product[] = Array.from({ length: 80 }, (_, i) => {
     currency: "GBP",
     stock: (i * 3) % 120,
     status,
-    category: pick(categories, i),
+    category: pick(categoryNames, i),
     createdAt: daysAgo(180 - (i % 160)),
     updatedAt: daysAgo(i % 40),
     description: `Quality ${pick(productNames, i).toLowerCase()} from ${seller.shopName}.`,
   };
 });
+
+export const categories: Category[] = categoryNames.map((name, index) => ({
+  id: `category-${pad(index + 1)}`,
+  name,
+  slug: name.toLowerCase().replace(/\s+/g, "-"),
+  productCount: products.filter((product) => product.category === name).length,
+  publishedProductCount: products.filter(
+    (product) => product.category === name && product.status === "published",
+  ).length,
+}));
 
 export const orders: Order[] = Array.from({ length: 120 }, (_, i) => {
   const n = i + 1;

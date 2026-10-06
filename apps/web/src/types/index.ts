@@ -205,6 +205,14 @@ export type Product = {
   description: string;
 };
 
+export type Category = {
+  id: string;
+  name: string;
+  slug: string;
+  productCount: number;
+  publishedProductCount: number;
+};
+
 export type TicketMessage = {
   id: string;
   authorId: string;

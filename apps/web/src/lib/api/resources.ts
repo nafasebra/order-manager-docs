@@ -7,6 +7,7 @@ import {
   buildSellerStats,
   buyers,
   campaigns,
+  categories,
   crmContacts,
   invoices,
   orders,
@@ -25,6 +26,7 @@ import type {
   BlogPost,
   Buyer,
   Campaign,
+  Category,
   CrmContact,
   Invoice,
   ListParams,
@@ -214,6 +216,182 @@ export function useProduct(id: string) {
     queryKey: ["products", id],
     queryFn: () => getById(products, id),
     enabled: Boolean(id),
+  });
+}
+
+type ProductMutation =
+  | {
+      action: "create";
+      name: string;
+      sku: string;
+      price: number;
+      stock: number;
+      description: string;
+    }
+  | {
+      action: "update";
+      id: string;
+      name: string;
+      sku: string;
+      price: number;
+      stock: number;
+      description: string;
+    }
+  | { action: "delete"; id: string };
+
+export function useProductMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ProductMutation) => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      if (payload.action === "create") {
+        if (products.some((product) => product.sku === payload.sku)) {
+          throw new Error("A product with this SKU already exists.");
+        }
+        const now = new Date().toISOString();
+        const product: Product = {
+          id: `prod-${Date.now()}`,
+          name: payload.name,
+          sku: payload.sku,
+          sellerId: sellers[0]?.id ?? "unassigned",
+          sellerName: sellers[0]?.shopName ?? "Unassigned",
+          price: payload.price,
+          currency: "GBP",
+          stock: payload.stock,
+          status: "draft",
+          category: categories[0]?.name ?? "Uncategorized",
+          createdAt: now,
+          updatedAt: now,
+          description: payload.description,
+        };
+        products.push(product);
+        const category = categories.find((item) => item.name === product.category);
+        if (category) category.productCount += 1;
+        return product;
+      }
+
+      const index = products.findIndex((product) => product.id === payload.id);
+      if (index < 0) throw new Error("Product not found");
+
+      if (payload.action === "delete") {
+        const deleted = products.splice(index, 1)[0];
+        const category = categories.find((item) => item.name === deleted.category);
+        if (category) {
+          category.productCount = Math.max(0, category.productCount - 1);
+          if (deleted.status === "published") {
+            category.publishedProductCount = Math.max(
+              0,
+              category.publishedProductCount - 1,
+            );
+          }
+        }
+        return deleted;
+      }
+
+      const duplicateSku = products.some(
+        (product) => product.id !== payload.id && product.sku === payload.sku,
+      );
+      if (duplicateSku) throw new Error("A product with this SKU already exists.");
+
+      const updated: Product = {
+        ...products[index],
+        name: payload.name,
+        sku: payload.sku,
+        price: payload.price,
+        stock: payload.stock,
+        description: payload.description,
+        updatedAt: new Date().toISOString(),
+      };
+      products[index] = updated;
+      return updated;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["categories"] });
+    },
+  });
+}
+
+export function useCategories(params?: ListParams) {
+  return useQuery({
+    queryKey: ["categories", params],
+    queryFn: () =>
+      listResource<Category>({
+        items: categories,
+        params,
+        searchKeys: ["name", "slug"],
+      }),
+  });
+}
+
+export function useCategory(id: string) {
+  return useQuery({
+    queryKey: ["categories", id],
+    queryFn: () => getById(categories, id),
+    enabled: Boolean(id),
+  });
+}
+
+type CategoryMutation =
+  | { action: "create"; name: string; slug: string }
+  | { action: "update"; id: string; name: string; slug: string }
+  | { action: "delete"; id: string };
+
+export function useCategoryMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: CategoryMutation) => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      if (payload.action === "create") {
+        const duplicate = categories.some(
+          (category) =>
+            category.name.toLowerCase() === payload.name.toLowerCase() ||
+            category.slug === payload.slug,
+        );
+        if (duplicate) throw new Error("A category with this name or slug already exists.");
+        const category: Category = {
+          id: `category-${Date.now()}`,
+          name: payload.name,
+          slug: payload.slug,
+          productCount: 0,
+          publishedProductCount: 0,
+        };
+        categories.push(category);
+        return category;
+      }
+
+      const index = categories.findIndex((category) => category.id === payload.id);
+      if (index < 0) throw new Error("Category not found");
+
+      if (payload.action === "delete") {
+        if (categories[index].productCount > 0) {
+          throw new Error("Move or remove this category's products before deleting it.");
+        }
+        return categories.splice(index, 1)[0];
+      }
+
+      const duplicate = categories.some(
+        (category) =>
+          category.id !== payload.id &&
+          (category.name.toLowerCase() === payload.name.toLowerCase() ||
+            category.slug === payload.slug),
+      );
+      if (duplicate) throw new Error("A category with this name or slug already exists.");
+
+      const previousName = categories[index].name;
+      const updated = { ...categories[index], name: payload.name, slug: payload.slug };
+      categories[index] = updated;
+      products.forEach((product) => {
+        if (product.category === previousName) product.category = payload.name;
+      });
+      return updated;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["categories"] });
+      void qc.invalidateQueries({ queryKey: ["products"] });
+    },
   });
 }
 

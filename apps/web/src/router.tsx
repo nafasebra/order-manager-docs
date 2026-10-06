@@ -36,6 +36,8 @@ import {
   AdminSellersListPage,
 } from "@/pages/admin/AdminPeoplePages";
 import {
+  AdminCategoryFormPage,
+  AdminCategoriesListPage,
   AdminProductDetailPage,
   AdminProductFormPage,
   AdminProductsListPage,
@@ -433,6 +435,32 @@ const adminProductsRoute = createRoute({
     return (
       <AdminProductsListPage search={search} onSearchChange={onSearchChange} />
     );
+  },
+});
+
+const adminCategoriesRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/categories",
+  validateSearch: listSearchSchema,
+  beforeLoad: ({ context }) => requireGrant(context, "products", "view"),
+  component: function Page() {
+    const { search, onSearchChange } = useListSearchSync(adminCategoriesRoute);
+    return (
+      <AdminCategoriesListPage
+        search={search}
+        onSearchChange={onSearchChange}
+      />
+    );
+  },
+});
+
+const adminCategoryEditRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/categories/$categoryId/edit",
+  beforeLoad: ({ context }) => requireGrant(context, "products", "edit"),
+  component: function Page() {
+    const { categoryId } = adminCategoryEditRoute.useParams();
+    return <AdminCategoryFormPage categoryId={categoryId} />;
   },
 });
 
@@ -836,6 +864,8 @@ const routeTree = rootRoute.addChildren([
     adminSellerNewRoute,
     adminSellerDetailRoute,
     adminProductsRoute,
+    adminCategoriesRoute,
+    adminCategoryEditRoute,
     adminProductNewRoute,
     adminProductDetailRoute,
     adminProductEditRoute,
