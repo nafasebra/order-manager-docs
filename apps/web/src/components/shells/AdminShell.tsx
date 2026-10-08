@@ -21,6 +21,7 @@ import {
   Shield,
   KeyRound,
   BadgeCheck,
+  Activity,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -139,6 +140,9 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
         : []),
     ] as NavItem[]),
     section("Settings", [
+      ...(canView(user, "admin_management")
+        ? [{ label: "Health Center", to: "/admin/settings/health", icon: Activity }]
+        : []),
       ...(canView(user, "admin_management")
         ? [
             {

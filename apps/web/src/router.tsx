@@ -26,6 +26,7 @@ import { RoleSelectPage } from "@/pages/auth/RoleSelectPage";
 import { SessionExpiredPage } from "@/pages/auth/SessionExpiredPage";
 import { ForbiddenPage, NotFoundPage } from "@/pages/system/ErrorPages";
 import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
+import { AdminHealthCenterPage } from "@/pages/admin/AdminHealthCenterPage";
 import { SellerTicketsListPage, SellerTicketDetailPage } from "@/pages/seller/SellerTicketPages";
 import { SellerInventoryPage } from "@/pages/seller/SellerInventoryPage";
 import { SellerCouponsPage } from "@/pages/seller/SellerCouponsPage";
@@ -708,6 +709,13 @@ const adminRolesRoute = createRoute({
   component: AdminRolesPage,
 });
 
+const adminHealthRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/settings/health",
+  beforeLoad: ({ context }) => requireGrant(context, "admin_management", "view"),
+  component: AdminHealthCenterPage,
+});
+
 const sellerLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/seller",
@@ -923,6 +931,7 @@ const routeTree = rootRoute.addChildren([
     adminAdminNewRoute,
     adminAdminDetailRoute,
     adminRolesRoute,
+    adminHealthRoute,
   ]),
   sellerLayoutRoute.addChildren([
     sellerIndexRoute,
