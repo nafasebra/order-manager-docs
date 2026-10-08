@@ -1,48 +1,25 @@
 import {
-  Outlet,
-  createRootRouteWithContext,
-  createRoute,
-  createRouter,
-  useNavigate,
-} from "@tanstack/react-router";
-import { QueryClient } from "@tanstack/react-query";
-import { z } from "zod";
-import { Toaster } from "@/components/ui/sonner";
-import { TableSortProvider } from "@/components/patterns/TableSortProvider";
-import { AdminShell } from "@/components/shells/AdminShell";
-import { SellerShell } from "@/components/shells/SellerShell";
-import { BuyerShell } from "@/components/shells/BuyerShell";
-import {
-  requireBuyerSession,
-  requireGrant,
-  requireSellerSession,
-  requireStaffSession,
-  type RouterContext,
-} from "@/lib/router/guards";
-import { listSearchSchema, ordersSearchSchema } from "@/lib/router/search";
-import { can } from "@/lib/permissions/can";
-import { LoginPage } from "@/pages/auth/LoginPage";
-import { RoleSelectPage } from "@/pages/auth/RoleSelectPage";
-import { SessionExpiredPage } from "@/pages/auth/SessionExpiredPage";
-import { ForbiddenPage, NotFoundPage } from "@/pages/system/ErrorPages";
-import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
-import { AdminHealthCenterPage } from "@/pages/admin/AdminHealthCenterPage";
-import { SellerTicketsListPage, SellerTicketDetailPage } from "@/pages/seller/SellerTicketPages";
-import { SellerInventoryPage } from "@/pages/seller/SellerInventoryPage";
-import { SellerCouponsPage } from "@/pages/seller/SellerCouponsPage";
-import { AdminCouponsPage } from "@/pages/admin/AdminCouponsPage";
-import { SellerProductsPage } from "@/pages/seller/SellerProductsPage";
-import { AdminAnalyticsPage } from "@/pages/admin/AdminAnalyticsPage";
-import { AdminOrdersListPage } from "@/pages/admin/AdminOrdersListPage";
-import { AdminOrderDetailPage } from "@/pages/admin/AdminOrderDetailPage";
-import {
+  LoginPage,
+  RoleSelectPage,
+  SessionExpiredPage,
+  ForbiddenPage,
+  NotFoundPage,
+  AdminOverviewPage,
+  AdminHealthCenterPage,
+  SellerTicketsListPage,
+  SellerTicketDetailPage,
+  SellerInventoryPage,
+  SellerCouponsPage,
+  AdminCouponsPage,
+  SellerProductsPage,
+  AdminAnalyticsPage,
+  AdminOrdersListPage,
+  AdminOrderDetailPage,
   AdminBuyerDetailPage,
   AdminBuyersListPage,
   AdminSellerCreatePage,
   AdminSellerDetailPage,
   AdminSellersListPage,
-} from "@/pages/admin/AdminPeoplePages";
-import {
   AdminCategoryFormPage,
   AdminCategoriesListPage,
   AdminProductDetailPage,
@@ -53,17 +30,11 @@ import {
   AdminReportsListPage,
   AdminReviewDetailPage,
   AdminReviewsListPage,
-} from "@/pages/admin/AdminCatalogPages";
-import {
   AdminInvoiceCreatePage,
   AdminInvoiceDetailPage,
   AdminInvoicesListPage,
-} from "@/pages/admin/AdminInvoicePages";
-import {
   AdminTransactionDetailPage,
   AdminTransactionsListPage,
-} from "@/pages/admin/AdminTransactionPages";
-import {
   AdminBlogDetailPage,
   AdminBlogEditorPage,
   AdminBlogListPage,
@@ -72,25 +43,20 @@ import {
   AdminWebsitePage,
   AdminWebsitePageEditor,
   AdminWebsitePagesListPage,
-} from "@/pages/admin/AdminContentPages";
-import { AdminCampaignCreatePage, AdminCampaignDetailPage, AdminMarketingListPage } from "@/pages/admin/AdminCampaignPages";
-import {
+  AdminCampaignCreatePage,
+  AdminCampaignDetailPage,
+  AdminMarketingListPage,
   AdminTicketDetailPage,
   AdminTicketsListPage,
-} from "@/pages/admin/AdminTicketPages";
-import {
   AdminAdminCreatePage,
   AdminAdminDetailPage,
   AdminAdminsListPage,
   AdminRolesPage,
-} from "@/pages/admin/AdminSettingsPages";
-import {
-  SellerOrdersListPage,
   SellerAnalyticsPage,
   SellerOverviewPage,
+  SellerOrdersListPage,
+  SellerOrderDetailPage,
   SellerSettingsPage,
-} from "@/pages/seller/SellerPages";
-import {
   BuyerAddressesPage,
   BuyerHomePage,
   BuyerOrderDetailPage,
@@ -98,8 +64,38 @@ import {
   BuyerProfilePage,
   BuyerTicketDetailPage,
   BuyerTicketsListPage,
-} from "@/pages/buyer/BuyerPages";
-import type { ListParams, SessionUser } from "@/types";
+} from "@/pages/registry";
+import { Suspense } from "react";
+import { ErrorState } from "@/components/patterns/ErrorState";
+import {
+  Outlet,
+  createRootRouteWithContext,
+  createRoute,
+  createRouter,
+  useNavigate,
+} from "@tanstack/react-router";
+import { QueryClient, MutationCache } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { persistDemoData } from "@/mocks/store";
+import { z } from "zod";
+import { Toaster } from "@/components/ui/sonner";
+import { TableSortProvider } from "@/components/patterns/TableSortProvider";
+import { AdminShell } from "@/components/shells/AdminShell";
+import { SellerShell } from "@/components/shells/SellerShell";
+import { BuyerShell } from "@/components/shells/BuyerShell";
+import {
+  requireBuyerSession,
+  requireGrant,
+  requireFeature,
+  requireSellerSession,
+  requireStaffSession,
+  type RouterContext,
+} from "@/lib/router/guards";
+import { listSearchSchema, ordersSearchSchema } from "@/lib/router/search";
+import { can } from "@/lib/permissions/can";
+import type { ListParams } from "@/types";
+import { getSession, setSession } from "@/lib/auth/store";
+export { getSession, setSession } from "@/lib/auth/store";
 import type { OrdersSearch } from "@/lib/router/search";
 
 export type AppRouterContext = RouterContext & {
@@ -112,19 +108,10 @@ declare module "@tanstack/react-router" {
   }
 }
 
-let sessionUser: SessionUser | null = null;
-
-export function getSession(): SessionUser | null {
-  return sessionUser;
-}
-
-export function setSession(user: SessionUser | null) {
-  sessionUser = user;
-}
-
-function useListSearchSync<T extends ListParams>(
-  route: { useSearch: () => T; fullPath: string },
-) {
+function useListSearchSync<T extends ListParams>(route: {
+  useSearch: () => T;
+  fullPath: string;
+}) {
   const search = route.useSearch();
   const navigate = useNavigate({ from: route.fullPath as never });
   return {
@@ -140,7 +127,17 @@ function useListSearchSync<T extends ListParams>(
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: () => (
     <>
-      <TableSortProvider><Outlet /></TableSortProvider>
+      <TableSortProvider>
+        <Suspense
+          fallback={
+            <div className="p-8 text-sm text-muted-foreground" role="status">
+              Loading page…
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
+      </TableSortProvider>
       <Toaster />
     </>
   ),
@@ -161,27 +158,7 @@ const authLoginRoute = createRoute({
   }),
   component: function AuthLogin() {
     const { panel } = authLoginRoute.useSearch();
-    return (
-      <LoginPage
-        defaultPanel={panel}
-        onSession={(nextPanel) => {
-          setSession({
-            id: "local-1",
-            displayName:
-              nextPanel === "staff"
-                ? "Nafas Admin"
-                : nextPanel === "seller"
-                  ? "Shop Owner"
-                  : "Buyer",
-            email: "demo@example.com",
-            actorType: nextPanel,
-            isSuperuser: nextPanel === "staff",
-            shopName: nextPanel === "seller" ? "Demo Shop" : undefined,
-            grants: [],
-          });
-        }}
-      />
-    );
+    return <LoginPage defaultPanel={panel} />;
   },
 });
 
@@ -225,6 +202,7 @@ const adminLayoutRoute = createRoute({
 const adminIndexRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/",
+  beforeLoad: ({ context }) => requireGrant(context, "analytics", "view"),
   component: AdminOverviewPage,
 });
 
@@ -239,7 +217,9 @@ const adminMarketingRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/marketing",
   validateSearch: listSearchSchema.extend({
-    status: z.enum(["draft", "scheduled", "active", "paused", "ended"]).optional(),
+    status: z
+      .enum(["draft", "scheduled", "active", "paused", "ended"])
+      .optional(),
     tenant: z.string().optional(),
     channel: z.enum(["storefront", "email", "social"]).optional(),
   }),
@@ -276,9 +256,7 @@ const adminCrmRoute = createRoute({
   beforeLoad: ({ context }) => requireGrant(context, "crm", "view"),
   component: function Page() {
     const { search, onSearchChange } = useListSearchSync(adminCrmRoute);
-    return (
-      <AdminCrmListPage search={search} onSearchChange={onSearchChange} />
-    );
+    return <AdminCrmListPage search={search} onSearchChange={onSearchChange} />;
   },
 });
 
@@ -359,8 +337,9 @@ const adminTransactionsRoute = createRoute({
   validateSearch: listSearchSchema,
   beforeLoad: ({ context }) => requireGrant(context, "transactions", "view"),
   component: function Page() {
-    const { search, onSearchChange } =
-      useListSearchSync(adminTransactionsRoute);
+    const { search, onSearchChange } = useListSearchSync(
+      adminTransactionsRoute,
+    );
     return (
       <AdminTransactionsListPage
         search={search}
@@ -465,7 +444,10 @@ const adminCategoriesRoute = createRoute({
 const adminCouponsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/coupons",
-  beforeLoad: ({ context }) => requireGrant(context, "marketing", "view"),
+  beforeLoad: ({ context }) => {
+    requireFeature("coupons");
+    requireGrant(context, "marketing", "view");
+  },
   component: AdminCouponsPage,
 });
 
@@ -539,8 +521,7 @@ const adminReportsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/product-reports",
   validateSearch: listSearchSchema,
-  beforeLoad: ({ context }) =>
-    requireGrant(context, "product_reports", "view"),
+  beforeLoad: ({ context }) => requireGrant(context, "product_reports", "view"),
   component: function Page() {
     const { search, onSearchChange } = useListSearchSync(adminReportsRoute);
     return (
@@ -552,8 +533,7 @@ const adminReportsRoute = createRoute({
 const adminReportDetailRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/product-reports/$reportId",
-  beforeLoad: ({ context }) =>
-    requireGrant(context, "product_reports", "view"),
+  beforeLoad: ({ context }) => requireGrant(context, "product_reports", "view"),
   component: function Page() {
     const { reportId } = adminReportDetailRoute.useParams();
     return <AdminReportDetailPage reportId={reportId} />;
@@ -573,8 +553,9 @@ const adminWebsitePagesRoute = createRoute({
   validateSearch: listSearchSchema,
   beforeLoad: ({ context }) => requireGrant(context, "website", "view"),
   component: function Page() {
-    const { search, onSearchChange } =
-      useListSearchSync(adminWebsitePagesRoute);
+    const { search, onSearchChange } = useListSearchSync(
+      adminWebsitePagesRoute,
+    );
     return (
       <AdminWebsitePagesListPage
         search={search}
@@ -712,7 +693,10 @@ const adminRolesRoute = createRoute({
 const adminHealthRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/settings/health",
-  beforeLoad: ({ context }) => requireGrant(context, "admin_management", "view"),
+  beforeLoad: ({ context }) => {
+    requireFeature("health");
+    requireGrant(context, "admin_management", "view");
+  },
   component: AdminHealthCenterPage,
 });
 
@@ -747,7 +731,9 @@ const sellerProductsRoute = createRoute({
   validateSearch: listSearchSchema,
   component: function Page() {
     const { search, onSearchChange } = useListSearchSync(sellerProductsRoute);
-    return <SellerProductsPage search={search} onSearchChange={onSearchChange} />;
+    return (
+      <SellerProductsPage search={search} onSearchChange={onSearchChange} />
+    );
   },
 });
 
@@ -766,6 +752,7 @@ const sellerInventoryRoute = createRoute({
 const sellerCouponsRoute = createRoute({
   getParentRoute: () => sellerLayoutRoute,
   path: "/coupons",
+  beforeLoad: () => requireFeature("coupons"),
   component: SellerCouponsPage,
 });
 
@@ -773,7 +760,24 @@ const sellerOrdersRoute = createRoute({
   getParentRoute: () => sellerLayoutRoute,
   path: "/orders",
   validateSearch: ordersSearchSchema,
-  component: SellerOrdersListPage,
+  component: function Page() {
+    const { search, onSearchChange } = useListSearchSync(sellerOrdersRoute);
+    return (
+      <SellerOrdersListPage search={search} onSearchChange={onSearchChange} />
+    );
+  },
+});
+
+const sellerOrderDetailRoute = createRoute({
+  getParentRoute: () => sellerLayoutRoute,
+  path: "/orders/$orderId",
+  component: function Page() {
+    return (
+      <SellerOrderDetailPage
+        orderId={sellerOrderDetailRoute.useParams().orderId}
+      />
+    );
+  },
 });
 
 const sellerSettingsRoute = createRoute({
@@ -785,10 +789,16 @@ const sellerSettingsRoute = createRoute({
 const sellerTicketsRoute = createRoute({
   getParentRoute: () => sellerLayoutRoute,
   path: "/tickets",
-  validateSearch: listSearchSchema.extend({ status: z.enum(["open", "in_progress", "waiting", "resolved", "closed"]).optional() }),
+  validateSearch: listSearchSchema.extend({
+    status: z
+      .enum(["open", "in_progress", "waiting", "resolved", "closed"])
+      .optional(),
+  }),
   component: function Page() {
     const { search, onSearchChange } = useListSearchSync(sellerTicketsRoute);
-    return <SellerTicketsListPage search={search} onSearchChange={onSearchChange} />;
+    return (
+      <SellerTicketsListPage search={search} onSearchChange={onSearchChange} />
+    );
   },
 });
 
@@ -940,6 +950,7 @@ const routeTree = rootRoute.addChildren([
     sellerCouponsRoute,
     sellerProductsRoute,
     sellerOrdersRoute,
+    sellerOrderDetailRoute,
     sellerSettingsRoute,
     sellerTicketsRoute,
     sellerTicketDetailRoute,
@@ -956,9 +967,23 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 export const queryClient = new QueryClient({
+  mutationCache: new MutationCache({
+    onSuccess: () => {
+      if (!persistDemoData())
+        toast.warning(
+          "Changes are available for this session, but browser storage is full or unavailable.",
+        );
+      void queryClient.invalidateQueries();
+    },
+    onError: (error) =>
+      toast.error(
+        error instanceof Error ? error.message : "Could not save changes.",
+      ),
+  }),
   defaultOptions: {
     queries: {
       staleTime: 30_000,
+      structuralSharing: false,
       retry: 1,
     },
   },
@@ -972,4 +997,20 @@ export const router = createRouter({
     can,
   },
   defaultPreload: "intent",
+  defaultErrorComponent: ({ reset }) => (
+    <div className="p-6">
+      <ErrorState
+        title="This page could not load"
+        action={
+          <button
+            type="button"
+            className="text-primary underline"
+            onClick={reset}
+          >
+            Try again
+          </button>
+        }
+      />
+    </div>
+  ),
 });

@@ -50,10 +50,17 @@ export function SalesOverviewChart({ data, range, onRangeChange }: Props) {
     >
       <div className="h-[280px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={sliced} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart
+            data={sliced}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+          >
             <defs>
               <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={colors.chart1} stopOpacity={0.25} />
+                <stop
+                  offset="0%"
+                  stopColor={colors.chart1}
+                  stopOpacity={0.25}
+                />
                 <stop offset="100%" stopColor={colors.chart1} stopOpacity={0} />
               </linearGradient>
             </defs>

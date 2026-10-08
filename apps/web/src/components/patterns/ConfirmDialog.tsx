@@ -52,6 +52,8 @@ export function ConfirmDialog({
       await onConfirm(requireReason ? reason.trim() : undefined);
       setReason("");
       onOpenChange(false);
+    } catch {
+      // The mutation reports its error; leave the dialog open to retry.
     } finally {
       setSubmitting(false);
     }
@@ -85,8 +87,7 @@ export function ConfirmDialog({
           <AlertDialogAction
             disabled={!reasonValid || submitting}
             className={cn(
-              destructive &&
-                buttonVariants({ variant: "destructive" }),
+              destructive && buttonVariants({ variant: "destructive" }),
             )}
             onClick={(e) => {
               e.preventDefault();

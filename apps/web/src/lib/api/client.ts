@@ -1,6 +1,7 @@
 import type { ApiError, FieldErrors } from "@/types";
 
-const API_BASE = "/api/v1";
+import { template } from "@/config/template";
+const API_BASE = template.apiBase;
 
 function getCsrfToken(): string | null {
   if (typeof document === "undefined") return null;
@@ -116,12 +117,23 @@ export async function apiRequest<T>(
 export const api = {
   get: <T>(path: string, options?: Omit<RequestOptions, "method" | "body">) =>
     apiRequest<T>(path, { ...options, method: "GET" }),
-  post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>
-    apiRequest<T>(path, { ...options, method: "POST", body }),
-  patch: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>
-    apiRequest<T>(path, { ...options, method: "PATCH", body }),
-  put: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>
-    apiRequest<T>(path, { ...options, method: "PUT", body }),
-  delete: <T>(path: string, options?: Omit<RequestOptions, "method" | "body">) =>
-    apiRequest<T>(path, { ...options, method: "DELETE" }),
+  post: <T>(
+    path: string,
+    body?: unknown,
+    options?: Omit<RequestOptions, "method" | "body">,
+  ) => apiRequest<T>(path, { ...options, method: "POST", body }),
+  patch: <T>(
+    path: string,
+    body?: unknown,
+    options?: Omit<RequestOptions, "method" | "body">,
+  ) => apiRequest<T>(path, { ...options, method: "PATCH", body }),
+  put: <T>(
+    path: string,
+    body?: unknown,
+    options?: Omit<RequestOptions, "method" | "body">,
+  ) => apiRequest<T>(path, { ...options, method: "PUT", body }),
+  delete: <T>(
+    path: string,
+    options?: Omit<RequestOptions, "method" | "body">,
+  ) => apiRequest<T>(path, { ...options, method: "DELETE" }),
 };

@@ -1,3 +1,4 @@
+import { useListQuery } from "@/hooks/useListQuery";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -44,11 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import {
-  useInvoice,
-  useInvoices,
-  useMockMutation,
-} from "@/lib/api/resources";
+import { useInvoice, useInvoices, useMockMutation } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
 import type { Invoice, ListParams } from "@/types";
 
@@ -90,7 +87,7 @@ type ListProps = {
 
 export function AdminInvoicesListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useInvoices({ ...search, q: debouncedQ || undefined });
 
@@ -105,7 +102,11 @@ export function AdminInvoicesListPage({ search, onSearchChange }: ListProps) {
           </Button>
         }
       />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search invoices…">
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search invoices…"
+      >
         <Select
           value={String(search.status ?? "all")}
           onValueChange={(v) =>
@@ -294,11 +295,18 @@ export function AdminInvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
           },
         ]}
       />
-      <DataTable data={data.lines} columns={[
-        { accessorKey: "description", header: "Description" },
-        { accessorKey: "quantity", header: "Qty" },
-        { accessorKey: "unitPrice", header: "Unit", cell: ({ row }) => formatMoney(row.original.unitPrice) },
-      ]} />
+      <DataTable
+        data={data.lines}
+        columns={[
+          { accessorKey: "description", header: "Description" },
+          { accessorKey: "quantity", header: "Qty" },
+          {
+            accessorKey: "unitPrice",
+            header: "Unit",
+            cell: ({ row }) => formatMoney(row.original.unitPrice),
+          },
+        ]}
+      />
       <ConfirmDialog
         open={voidOpen}
         onOpenChange={setVoidOpen}

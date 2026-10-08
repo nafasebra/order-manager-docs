@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getById, listResource } from "@/mocks/mockApi";
+import { mutateResource } from "@/mocks/mutations";
 import {
   admins,
   blogPosts,
@@ -15,6 +16,7 @@ import {
   products,
   questions,
   reviews,
+  roleTemplates,
   sellers,
   siteContext,
   sitePages,
@@ -238,7 +240,10 @@ export function useSellerStockMutation(sellerId: string) {
       if (!Number.isSafeInteger(stock) || stock < 0) {
         throw new Error("Quantity must be a non-negative whole number.");
       }
-      const product = await getById(products.filter((item) => item.sellerId === sellerId), id);
+      const product = products.find(
+        (item) => item.sellerId === sellerId && item.id === id,
+      );
+      if (!product) throw new Error("Product not found in your shop.");
       product.stock = stock;
       product.updatedAt = new Date().toISOString();
       return product;
@@ -250,7 +255,6 @@ export function useSellerStockMutation(sellerId: string) {
     },
   });
 }
-
 
 export function useCategories(params?: ListParams) {
   return useQuery({
@@ -289,7 +293,8 @@ export function useCategoryMutation() {
             category.name.toLowerCase() === payload.name.toLowerCase() ||
             category.slug === payload.slug,
         );
-        if (duplicate) throw new Error("A category with this name or slug already exists.");
+        if (duplicate)
+          throw new Error("A category with this name or slug already exists.");
         const category: Category = {
           id: `category-${Date.now()}`,
           name: payload.name,
@@ -301,12 +306,16 @@ export function useCategoryMutation() {
         return category;
       }
 
-      const index = categories.findIndex((category) => category.id === payload.id);
+      const index = categories.findIndex(
+        (category) => category.id === payload.id,
+      );
       if (index < 0) throw new Error("Category not found");
 
       if (payload.action === "delete") {
         if (categories[index].productCount > 0) {
-          throw new Error("Move or remove this category's products before deleting it.");
+          throw new Error(
+            "Move or remove this category's products before deleting it.",
+          );
         }
         return categories.splice(index, 1)[0];
       }
@@ -317,10 +326,15 @@ export function useCategoryMutation() {
           (category.name.toLowerCase() === payload.name.toLowerCase() ||
             category.slug === payload.slug),
       );
-      if (duplicate) throw new Error("A category with this name or slug already exists.");
+      if (duplicate)
+        throw new Error("A category with this name or slug already exists.");
 
       const previousName = categories[index].name;
-      const updated = { ...categories[index], name: payload.name, slug: payload.slug };
+      const updated = {
+        ...categories[index],
+        name: payload.name,
+        slug: payload.slug,
+      };
       categories[index] = updated;
       products.forEach((product) => {
         if (product.category === previousName) product.category = payload.name;
@@ -356,13 +370,22 @@ export function useTicket(id: string) {
 }
 
 function sellerTickets(sellerId: string) {
-  return tickets.filter((ticket) => ticket.channel === "buyer_seller" && ticket.sellerId === sellerId);
+  return tickets.filter(
+    (ticket) =>
+      ticket.channel === "buyer_seller" && ticket.sellerId === sellerId,
+  );
 }
 
 export function useSellerTickets(sellerId: string, params?: ListParams) {
   return useQuery({
     queryKey: ["seller-tickets", sellerId, params],
-    queryFn: () => listResource<Ticket>({ items: sellerTickets(sellerId), params, searchKeys: ["ticketNumber", "subject", "requesterName"], statusKey: "status" }),
+    queryFn: () =>
+      listResource<Ticket>({
+        items: sellerTickets(sellerId),
+        params,
+        searchKeys: ["ticketNumber", "subject", "requesterName"],
+        statusKey: "status",
+      }),
     enabled: Boolean(sellerId),
   });
 }
@@ -372,7 +395,10 @@ export function useSellerTicket(sellerId: string, id: string) {
     queryKey: ["seller-tickets", sellerId, id],
     queryFn: async () => {
       const ticket = await getById(sellerTickets(sellerId), id);
-      return { ...ticket, messages: ticket.messages.filter((message) => !message.internal) };
+      return {
+        ...ticket,
+        messages: ticket.messages.filter((message) => !message.internal),
+      };
     },
     enabled: Boolean(sellerId && id),
   });
@@ -381,12 +407,28 @@ export function useSellerTicket(sellerId: string, id: string) {
 export function useSellerTicketMutation(sellerId: string, authorName: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; action: "reply"; body: string } | { id: string; action: "status"; status: TicketStatus }) => {
-      const ticket = await getById(sellerTickets(sellerId), payload.id);
+    mutationFn: async (
+      payload:
+        | { id: string; action: "reply"; body: string }
+        | { id: string; action: "status"; status: TicketStatus },
+    ) => {
+      const ticket = sellerTickets(sellerId).find(
+        (item) => item.id === payload.id,
+      );
+      if (!ticket) throw new Error("Ticket not found in your shop.");
       if (payload.action === "reply") {
-        if (ticket.status === "closed") throw new Error("This ticket is closed.");
+        if (ticket.status === "closed")
+          throw new Error("This ticket is closed.");
         if (!payload.body.trim()) throw new Error("Write a reply first.");
-        ticket.messages.push({ id: `message-${Date.now()}`, authorId: sellerId, authorName, authorType: "seller", body: payload.body.trim(), createdAt: new Date().toISOString(), internal: false });
+        ticket.messages.push({
+          id: `message-${Date.now()}`,
+          authorId: sellerId,
+          authorName,
+          authorType: "seller",
+          body: payload.body.trim(),
+          createdAt: new Date().toISOString(),
+          internal: false,
+        });
       } else {
         ticket.status = payload.status;
       }
@@ -394,7 +436,13 @@ export function useSellerTicketMutation(sellerId: string, authorName: string) {
       return ticket;
     },
     onSuccess: () => {
-      for (const key of ["seller-tickets", "seller-stats", "tickets", "buyer-tickets", "buyer-summary"]) {
+      for (const key of [
+        "seller-tickets",
+        "seller-stats",
+        "tickets",
+        "buyer-tickets",
+        "buyer-summary",
+      ]) {
         void qc.invalidateQueries({ queryKey: [key] });
       }
     },
@@ -512,9 +560,22 @@ export function useCampaigns(params?: ListParams) {
     queryFn: () =>
       listResource<Campaign>({
         items: campaigns
-          .filter((campaign) => !params?.tenant || !campaign.tenantIds?.length || campaign.tenantIds.includes(String(params.tenant)))
-          .filter((campaign) => !params?.channel || (campaign.channel ?? "storefront") === params.channel)
-          .map((campaign) => ({ ...campaign, channel: campaign.channel ?? "storefront", storeCount: campaign.tenantIds?.length || sellers.length })),
+          .filter(
+            (campaign) =>
+              !params?.tenant ||
+              !campaign.tenantIds?.length ||
+              campaign.tenantIds.includes(String(params.tenant)),
+          )
+          .filter(
+            (campaign) =>
+              !params?.channel ||
+              (campaign.channel ?? "storefront") === params.channel,
+          )
+          .map((campaign) => ({
+            ...campaign,
+            channel: campaign.channel ?? "storefront",
+            storeCount: campaign.tenantIds?.length || sellers.length,
+          })),
         params,
         searchKeys: ["name", "code"],
         statusKey: "status",
@@ -616,6 +677,13 @@ export function useAdmins(params?: ListParams) {
   });
 }
 
+export function useRoleTemplates() {
+  return useQuery({
+    queryKey: ["role-templates"],
+    queryFn: () => structuredClone(roleTemplates),
+  });
+}
+
 export function useAdmin(id: string) {
   return useQuery({
     queryKey: ["admins", id],
@@ -630,10 +698,10 @@ export function useMockMutation(resourceKey: string) {
   return useMutation({
     mutationFn: async (payload: unknown) => {
       await new Promise((r) => setTimeout(r, 200));
-      return payload;
+      return mutateResource(resourceKey, payload);
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: [resourceKey] });
+      void qc.invalidateQueries();
     },
   });
 }

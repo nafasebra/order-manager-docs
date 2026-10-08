@@ -1,3 +1,4 @@
+import { useListQuery } from "@/hooks/useListQuery";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -39,7 +40,7 @@ import {
 } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
 import { can } from "@/lib/permissions/can";
-import { getSession } from "@/router";
+import { getSession } from "@/lib/auth/store";
 import type { ListParams, Transaction } from "@/types";
 
 const columns: ColumnDef<Transaction>[] = [
@@ -78,7 +79,7 @@ export function AdminTransactionsListPage({
   onSearchChange,
 }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useTransactions({ ...search, q: debouncedQ || undefined });
 
@@ -88,7 +89,11 @@ export function AdminTransactionsListPage({
         title="Transactions"
         description="Payments, refunds, payouts, and adjustments."
       />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search transactions…">
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search transactions…"
+      >
         <Select
           value={String(search.status ?? "all")}
           onValueChange={(v) =>
@@ -168,7 +173,9 @@ export function AdminTransactionDetailPage({
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage className="font-mono">{data.reference}</BreadcrumbPage>
+            <BreadcrumbPage className="font-mono">
+              {data.reference}
+            </BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>

@@ -1,3 +1,4 @@
+import { readHealthSettings } from "@/config/health";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -5,17 +6,19 @@ import { PageHeader } from "@/components/patterns/PageHeader";
 import { IncomeStatistics } from "@/components/patterns/IncomeStatistics";
 import { EmptyState } from "@/components/patterns/EmptyState";
 import { ErrorState } from "@/components/patterns/ErrorState";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DataTable } from "@/components/patterns/DataTable";
 import {
   actionsColumn,
   copyIdAction,
 } from "@/components/patterns/DataTableRowActions";
 import { StatusChip } from "@/components/patterns/StatusChip";
-import {
-  WaySettingsList,
-  type WaySetting,
-} from "@/components/patterns/WaySettingsList";
 import {
   OrderStatusChart,
   SalesOverviewChart,
@@ -25,67 +28,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { useSellerStats } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
-import { getSession } from "@/router";
+import { getSession } from "@/lib/auth/store";
 import type { SellerProductStat, Ticket } from "@/types";
 
 const DEMO_SELLER_ID = "seller-0001";
-
-const initialDelivery: WaySetting[] = [
-  {
-    id: "std",
-    name: "Standard shipping",
-    enabled: true,
-    label: "Standard",
-    instructions: "3–5 business days",
-    sortOrder: 1,
-  },
-  {
-    id: "exp",
-    name: "Express",
-    enabled: true,
-    label: "Express",
-    instructions: "1–2 business days",
-    sortOrder: 2,
-  },
-  {
-    id: "pickup",
-    name: "Pickup",
-    enabled: false,
-    label: "Store pickup",
-    instructions: "",
-    sortOrder: 3,
-  },
-];
-
-const initialPayment: WaySetting[] = [
-  {
-    id: "cod",
-    name: "Cash on delivery",
-    enabled: true,
-    label: "COD",
-    instructions: "Pay when you receive",
-    sortOrder: 1,
-  },
-  {
-    id: "bank",
-    name: "Bank transfer",
-    enabled: true,
-    label: "Bank transfer",
-    instructions: "Include order number in reference",
-    sortOrder: 2,
-  },
-  {
-    id: "card",
-    name: "Card",
-    enabled: false,
-    label: "Card (offline)",
-    instructions: "",
-    sortOrder: 3,
-  },
-];
 
 function KpiCard({
   label,
@@ -111,11 +59,11 @@ function KpiCard({
         ) : (
           <>
             <p className="text-2xl font-semibold">{value}</p>
-            {change != null ? (
+            {change != null && (
               <p className="mt-1 text-xs text-muted-foreground">
                 {change >= 0 ? "↑" : "↓"} {Math.abs(change)}% vs previous
               </p>
-            ) : null}
+            )}
           </>
         )}
       </CardContent>
@@ -177,8 +125,13 @@ export function SellerAnalyticsPage() {
         title="Shop analytics"
         description={`Sales, income, and product performance for ${session?.shopName ?? "your shop"}. Demo reporting period ends September 1, 2026.`}
         actions={
-          <Select value={range} onValueChange={(value) => setRange(value as ChartRange)}>
-            <SelectTrigger className="w-[160px]" aria-label="Analytics period"><SelectValue /></SelectTrigger>
+          <Select
+            value={range}
+            onValueChange={(value) => setRange(value as ChartRange)}
+          >
+            <SelectTrigger className="w-[160px]" aria-label="Analytics period">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="7d">Last 7 days</SelectItem>
               <SelectItem value="30d">Last 30 days</SelectItem>
@@ -187,31 +140,71 @@ export function SellerAnalyticsPage() {
           </Select>
         }
       />
-      {stats.isError ? <ErrorState title="Could not load shop analytics" /> : stats.isLoading || !stats.data ? (
+      {stats.isError ? (
+        <ErrorState title="Could not load shop analytics" />
+      ) : stats.isLoading || !stats.data ? (
         <Skeleton className="h-[480px] w-full rounded-md" />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Delivered sales" value={formatMoney(stats.data.revenue)} />
+            <KpiCard
+              label="Delivered sales"
+              value={formatMoney(stats.data.revenue)}
+            />
             <KpiCard label="Orders" value={String(stats.data.orders)} />
-            <KpiCard label="Avg. delivered order" value={formatMoney(stats.data.aov)} />
-            <KpiCard label="Items ordered" value={String(stats.data.itemsOrdered)} />
+            <KpiCard
+              label="Avg. delivered order"
+              value={formatMoney(stats.data.aov)}
+            />
+            <KpiCard
+              label="Items ordered"
+              value={String(stats.data.itemsOrdered)}
+            />
           </div>
-          <IncomeStatistics data={stats.data.income} scope="shop" range={range} onRangeChange={setRange} />
+          <IncomeStatistics
+            data={stats.data.income}
+            scope="shop"
+            range={range}
+            onRangeChange={setRange}
+          />
           <div className="grid gap-4 lg:grid-cols-5">
-            <div className="lg:col-span-3"><SalesOverviewChart data={stats.data.salesSeries} range={range} onRangeChange={setRange} /></div>
-            <div className="lg:col-span-2"><OrderStatusChart data={stats.data.statusMix} /></div>
+            <div className="lg:col-span-3">
+              <SalesOverviewChart
+                data={stats.data.salesSeries}
+                range={range}
+                onRangeChange={setRange}
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <OrderStatusChart data={stats.data.statusMix} />
+            </div>
           </div>
           {stats.data.topSellingProducts.length ? (
             <>
-              <TopProductsChart title="Top products by ordered value" data={stats.data.topProducts} valueLabel="Ordered value" />
+              <TopProductsChart
+                title="Top products by ordered value"
+                data={stats.data.topProducts}
+                valueLabel="Ordered value"
+              />
               <div className="space-y-3">
                 <h2 className="text-lg font-semibold">Product performance</h2>
-                <p className="text-sm text-muted-foreground">Units and order values include all order statuses in the selected period.</p>
-                <DataTable columns={topSellingProductColumns} data={stats.data.topSellingProducts} dense />
+                <p className="text-sm text-muted-foreground">
+                  Units and order values include all order statuses in the
+                  selected period.
+                </p>
+                <DataTable
+                  columns={topSellingProductColumns}
+                  data={stats.data.topSellingProducts}
+                  dense
+                />
               </div>
             </>
-          ) : <EmptyState title="No orders in this period" description="Choose a longer reporting period to explore your shop's performance." />}
+          ) : (
+            <EmptyState
+              title="No orders in this period"
+              description="Choose a longer reporting period to explore your shop's performance."
+            />
+          )}
         </>
       )}
     </div>
@@ -358,51 +351,13 @@ export function SellerOverviewPage() {
               ) : (
                 <EmptyState
                   title="Stock looks healthy"
-                  description="No published products under 10 units."
+                  description={`No published products at or below ${readHealthSettings().lowStock} units.`}
                 />
               )}
             </div>
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-export function SellerOrdersListPage() {
-  return (
-    <PlaceholderPage
-      title="Orders"
-      description="Orders that include your shop."
-    />
-  );
-}
-
-export function SellerSettingsPage() {
-  const [delivery, setDelivery] = useState(initialDelivery);
-  const [payment, setPayment] = useState(initialPayment);
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Settings"
-        description="Shop profile, delivery methods, and payment ways."
-      />
-      <EmptyState
-        title="Shop profile"
-        description="Business display name, contacts, and workplace address will go here."
-      />
-      <WaySettingsList
-        title="Delivery methods"
-        items={delivery}
-        onChange={setDelivery}
-      />
-      <WaySettingsList
-        title="Payment ways"
-        items={payment}
-        onChange={setPayment}
-        paymentHint
-      />
     </div>
   );
 }

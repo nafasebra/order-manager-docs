@@ -87,14 +87,30 @@ export function ChartCard({
       </CardHeader>
       <CardContent>
         {showTable && hasFallback ? (
-          <DataTable<TableRowData> data={tableRows!} columns={tableColumns!.map((column) => ({ accessorKey: column.key, header: column.label,
-            sortingFn: (a, b) => {
-              const av = a.original[column.key]; const bv = b.original[column.key];
-              const numeric = (value: string | number) => typeof value === "number" ? value : /[£$€]/.test(value) ? Number(value.replace(/[^\d.-]/g, "")) : NaN;
-              const an = numeric(av); const bn = numeric(bv);
-              return Number.isFinite(an) && Number.isFinite(bn) ? an - bn : String(av).localeCompare(String(bv), undefined, { numeric: true });
-            },
-          }))} />
+          <DataTable<TableRowData>
+            data={tableRows!}
+            columns={tableColumns!.map((column) => ({
+              accessorKey: column.key,
+              header: column.label,
+              sortingFn: (a, b) => {
+                const av = a.original[column.key];
+                const bv = b.original[column.key];
+                const numeric = (value: string | number) =>
+                  typeof value === "number"
+                    ? value
+                    : /[£$€]/.test(value)
+                      ? Number(value.replace(/[^\d.-]/g, ""))
+                      : NaN;
+                const an = numeric(av);
+                const bn = numeric(bv);
+                return Number.isFinite(an) && Number.isFinite(bn)
+                  ? an - bn
+                  : String(av).localeCompare(String(bv), undefined, {
+                      numeric: true,
+                    });
+              },
+            }))}
+          />
         ) : (
           children
         )}

@@ -1,3 +1,4 @@
+import { useListQuery } from "@/hooks/useListQuery";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -43,9 +44,7 @@ const columns: ColumnDef<Ticket>[] = [
   {
     accessorKey: "channel",
     header: "Channel",
-    cell: ({ row }) => (
-      <Badge variant="outline">{row.original.channel}</Badge>
-    ),
+    cell: ({ row }) => <Badge variant="outline">{row.original.channel}</Badge>,
   },
   {
     accessorKey: "priority",
@@ -70,7 +69,7 @@ type ListProps = {
 
 export function AdminTicketsListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useTickets({ ...search, q: debouncedQ || undefined });
 
@@ -80,7 +79,11 @@ export function AdminTicketsListPage({ search, onSearchChange }: ListProps) {
         title="Tickets"
         description="Site and buyer–seller support queue."
       />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search tickets…">
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search tickets…"
+      >
         <Select
           value={String(search.status ?? "all")}
           onValueChange={(v) =>
@@ -241,11 +244,15 @@ export function AdminTicketDetailPage({ ticketId }: { ticketId: string }) {
               </Select>
             </div>
             <div>
-              <p className="text-xs uppercase text-muted-foreground">Priority</p>
+              <p className="text-xs uppercase text-muted-foreground">
+                Priority
+              </p>
               <p className="capitalize">{data.priority}</p>
             </div>
             <div>
-              <p className="text-xs uppercase text-muted-foreground">Assignee</p>
+              <p className="text-xs uppercase text-muted-foreground">
+                Assignee
+              </p>
               <p>{data.assigneeName ?? "Unassigned"}</p>
             </div>
             <div>
@@ -268,7 +275,9 @@ export function AdminTicketDetailPage({ ticketId }: { ticketId: string }) {
             ) : null}
             {data.sellerName ? (
               <div>
-                <p className="text-xs uppercase text-muted-foreground">Seller</p>
+                <p className="text-xs uppercase text-muted-foreground">
+                  Seller
+                </p>
                 <p>{data.sellerName}</p>
               </div>
             ) : null}

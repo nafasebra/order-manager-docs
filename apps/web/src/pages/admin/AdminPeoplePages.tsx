@@ -1,3 +1,6 @@
+import { useListQuery } from "@/hooks/useListQuery";
+import { can } from "@/lib/permissions/can";
+import { getSession } from "@/lib/auth/store";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -69,7 +72,8 @@ const buyerColumns: ColumnDef<Buyer>[] = [
   {
     accessorKey: "createdAt",
     header: "Joined",
-    cell: ({ row }) => formatDate(row.original.createdAt, { dateStyle: "medium" }),
+    cell: ({ row }) =>
+      formatDate(row.original.createdAt, { dateStyle: "medium" }),
   },
 ];
 
@@ -80,14 +84,18 @@ type ListProps = {
 
 export function AdminBuyersListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useBuyers({ ...search, q: debouncedQ || undefined });
 
   return (
     <div>
       <PageHeader title="Buyers" description="Buyer directory." />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search buyers…">
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search buyers…"
+      >
         <Select
           value={String(search.status ?? "all")}
           onValueChange={(v) =>
@@ -181,7 +189,10 @@ export function AdminBuyerDetailPage({ buyerId }: { buyerId: string }) {
         </TabsContent>
         <TabsContent value="addresses" className="space-y-3 pt-4">
           {data.addresses.map((a) => (
-            <div key={a.id} className="rounded-md border border-border p-4 text-sm">
+            <div
+              key={a.id}
+              className="rounded-md border border-border p-4 text-sm"
+            >
               <p className="font-medium">
                 {a.label}
                 {a.isDefault ? " (default)" : ""}
@@ -212,7 +223,7 @@ const sellerColumns: ColumnDef<Seller>[] = [
 
 export function AdminSellersListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useSellers({ ...search, q: debouncedQ || undefined });
 
@@ -227,7 +238,11 @@ export function AdminSellersListPage({ search, onSearchChange }: ListProps) {
           </Button>
         }
       />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search sellers…">
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search sellers…"
+      >
         <Select
           value={String(search.status ?? "all")}
           onValueChange={(v) =>
@@ -295,7 +310,10 @@ export function AdminSellerCreatePage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <PageHeader title="Create seller" description="Provision a seller account." />
+      <PageHeader
+        title="Create seller"
+        description="Provision a seller account."
+      />
       <Form {...form}>
         <form
           className="space-y-4"
@@ -320,7 +338,10 @@ export function AdminSellerCreatePage() {
                         : "Email"}
                   </FormLabel>
                   <FormControl>
-                    <Input type={name === "email" ? "email" : "text"} {...field} />
+                    <Input
+                      type={name === "email" ? "email" : "text"}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -340,6 +361,8 @@ export function AdminSellerCreatePage() {
 }
 
 export function AdminSellerDetailPage({ sellerId }: { sellerId: string }) {
+  const mutation = useMockMutation("sellers");
+  const canEdit = can(getSession(), "sellers", "edit");
   const { data, isLoading, isError } = useSeller(sellerId);
   const [delivery, setDelivery] = useState<WaySetting[] | null>(null);
   const [payment, setPayment] = useState<WaySetting[] | null>(null);
@@ -380,15 +403,32 @@ export function AdminSellerDetailPage({ sellerId }: { sellerId: string }) {
       />
       <WaySettingsList
         title="Delivery methods"
+        readOnly={!canEdit}
         items={deliveryItems}
         onChange={setDelivery}
       />
       <WaySettingsList
         title="Payment ways"
+        readOnly={!canEdit}
         items={paymentItems}
         onChange={setPayment}
         paymentHint
       />
+      {canEdit && (
+        <Button
+          disabled={mutation.isPending}
+          onClick={async () => {
+            await mutation.mutateAsync({
+              id: sellerId,
+              deliveryMethods: deliveryItems,
+              paymentWays: paymentItems,
+            });
+            toast.success("Store settings saved");
+          }}
+        >
+          Save store settings
+        </Button>
+      )}
     </div>
   );
 }

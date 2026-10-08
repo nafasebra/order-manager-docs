@@ -23,7 +23,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { login } from "@/lib/auth/session";
-import { ApiClientError } from "@/lib/api/client";
+import { setSession } from "@/lib/auth/store";
+import { demoAccounts, sessionHome } from "@/lib/auth/demo";
+import { template } from "@/config/template";
 import type { ActorType } from "@/types";
 
 const schema = z.object({
@@ -34,27 +36,18 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-const demoCredentials: Record<ActorType, { email: string; password: string }> = {
-  staff: { email: "admin@example.com", password: "Admin123!" },
-  seller: { email: "seller1@example.com", password: "Seller123!" },
-  buyer: { email: "buyer1@example.com", password: "Buyer123!" },
-};
-
-const panelToPath: Record<ActorType, string> = {
-  staff: "/admin",
-  seller: "/seller",
-  buyer: "/account",
-};
+function credentialsFor(panel: ActorType) {
+  const account = demoAccounts.find((item) => item.panel === panel)!;
+  return template.demo
+    ? { email: account.email, password: account.password }
+    : { email: "", password: "" };
+}
 
 type LoginPageProps = {
   defaultPanel?: ActorType;
-  onSession?: (panel: ActorType) => void;
 };
 
-export function LoginPage({
-  defaultPanel = "staff",
-  onSession,
-}: LoginPageProps) {
+export function LoginPage({ defaultPanel = "staff" }: LoginPageProps) {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -62,33 +55,27 @@ export function LoginPage({
     resolver: zodResolver(schema),
     defaultValues: {
       panel: defaultPanel,
-      ...demoCredentials[defaultPanel],
+      ...credentialsFor(defaultPanel),
     },
   });
   const { reset } = form;
 
   useEffect(() => {
-    reset({ panel: defaultPanel, ...demoCredentials[defaultPanel] });
+    reset({ panel: defaultPanel, ...credentialsFor(defaultPanel) });
     setError(null);
   }, [defaultPanel, reset]);
 
   async function onSubmit(values: FormValues) {
     setError(null);
     try {
-      await login(values.panel, {
+      const user = await login(values.panel, {
         email: values.email,
         password: values.password,
       });
-      onSession?.(values.panel);
-      await navigate({ to: panelToPath[values.panel] });
+      setSession(user);
+      await navigate({ to: sessionHome(user) });
     } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError("Invalid credentials for this panel.");
-      } else {
-        // Scaffold: allow local navigation without API
-        onSession?.(values.panel);
-        await navigate({ to: panelToPath[values.panel] });
-      }
+      setError(err instanceof Error ? err.message : "Could not sign in.");
     }
   }
 
@@ -97,7 +84,7 @@ export function LoginPage({
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-[28px] font-semibold">
-            Clean Commerce
+            {template.brand}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             Sign in to Admin, Seller, or Buyer.
@@ -105,10 +92,7 @@ export function LoginPage({
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-4"
-            >
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
                 name="panel"
@@ -118,7 +102,7 @@ export function LoginPage({
                     <Select
                       onValueChange={(panel: ActorType) => {
                         field.onChange(panel);
-                        form.reset({ panel, ...demoCredentials[panel] });
+                        form.reset({ panel, ...credentialsFor(panel) });
                         setError(null);
                         void navigate({
                           to: "/auth/login",
@@ -143,6 +127,44 @@ export function LoginPage({
                   </FormItem>
                 )}
               />
+              {template.demo && form.watch("panel") === "staff" && (
+                <div className="space-y-2">
+                  <label htmlFor="demo-staff" className="text-sm font-medium">
+                    Demo staff account
+                  </label>
+                  <select
+                    id="demo-staff"
+                    className="h-10 w-full rounded-md border bg-background px-3"
+                    value={
+                      demoAccounts.find(
+                        (account) => account.email === form.watch("email"),
+                      )?.key ?? ""
+                    }
+                    onChange={(event) => {
+                      const account = demoAccounts.find(
+                        (item) => item.key === event.target.value,
+                      );
+                      if (account)
+                        form.reset({
+                          panel: "staff",
+                          email: account.email,
+                          password: account.password,
+                        });
+                    }}
+                  >
+                    <option value="" disabled>
+                      Choose demo account
+                    </option>
+                    {demoAccounts
+                      .filter((account) => account.panel === "staff")
+                      .map((account) => (
+                        <option key={account.key} value={account.key}>
+                          {account.label}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="email"
@@ -193,9 +215,11 @@ export function LoginPage({
                   </FormItem>
                 )}
               />
-              <p className="text-xs text-muted-foreground">
-                Demo credentials are prefilled for the selected panel. You can edit them.
-              </p>
+              {template.demo && (
+                <p className="text-xs text-muted-foreground">
+                  Demo credentials are prefilled. No backend is required.
+                </p>
+              )}
               {error ? (
                 <p className="text-sm text-destructive" role="alert">
                   {error}

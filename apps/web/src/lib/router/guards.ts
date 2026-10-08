@@ -1,11 +1,13 @@
 import { can } from "@/lib/permissions/can";
 import type { Action, PermissionArea, SessionUser } from "@/types";
 import { redirect } from "@tanstack/react-router";
+import { template } from "@/config/template";
 
-// Authentication and permission guards are intentionally disabled while the
-// dashboard is being developed without authentication. To restore them, add
-// the redirect import from @tanstack/react-router and uncomment the checks in
-// the guard functions below.
+export function requireFeature(feature: keyof typeof template.modules) {
+  if (!template.modules[feature]) throw redirect({ to: "/404" });
+}
+
+// Both demo and API sessions use the same route and permission checks.
 
 export type RouterContext = {
   getSession: () => SessionUser | null;
@@ -41,6 +43,8 @@ export function requireGrant(
   area: PermissionArea,
   action: Action,
 ) {
+  if (area === "marketing") requireFeature("marketing");
+  if (area === "website" || area === "blog") requireFeature("content");
   const user = context.getSession();
   if (!can(user, area, action)) {
     throw redirect({ to: "/403" });

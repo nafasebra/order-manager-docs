@@ -1,3 +1,4 @@
+import { useListQuery } from "@/hooks/useListQuery";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -60,8 +61,12 @@ import {
   useReviews,
 } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
-import { getSession } from "@/router";
-import { useProductModeration, productSales, productReviews } from "@/lib/api/productManagement";
+import { getSession } from "@/lib/auth/store";
+import {
+  useProductModeration,
+  productSales,
+  productReviews,
+} from "@/lib/api/productManagement";
 import type {
   Category,
   ListParams,
@@ -98,14 +103,13 @@ const categoryColumns: ColumnDef<Category>[] = [
   },
 ];
 
-export function AdminCategoriesListPage({
-  search,
-  onSearchChange,
-}: ListProps) {
+export function AdminCategoriesListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const [createOpen, setCreateOpen] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
+    null,
+  );
   const debouncedQ = useDebouncedValue(q);
   const query = useCategories({ ...search, q: debouncedQ || undefined });
   const mutate = useCategoryMutation();
@@ -255,7 +259,9 @@ export function AdminCategoriesListPage({
             toast.success("Category deleted");
           } catch (error) {
             toast.error(
-              error instanceof Error ? error.message : "Could not delete category",
+              error instanceof Error
+                ? error.message
+                : "Could not delete category",
             );
           }
         }}
@@ -308,7 +314,9 @@ export function AdminCategoryFormPage({ categoryId }: { categoryId?: string }) {
               void navigate({ to: "/admin/categories" });
             } catch (error) {
               toast.error(
-                error instanceof Error ? error.message : "Could not save category",
+                error instanceof Error
+                  ? error.message
+                  : "Could not save category",
               );
             }
           })}
@@ -340,7 +348,9 @@ export function AdminCategoryFormPage({ categoryId }: { categoryId?: string }) {
             )}
           />
           <div className="flex gap-2">
-            <Button type="submit" disabled={mutate.isPending}>Save</Button>
+            <Button type="submit" disabled={mutate.isPending}>
+              Save
+            </Button>
             <Button type="button" variant="outline" asChild>
               <Link to="/admin/categories">Cancel</Link>
             </Button>
@@ -372,7 +382,7 @@ const productColumns: ColumnDef<Product>[] = [
 
 export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useProducts({ ...search, q: debouncedQ || undefined });
 
@@ -382,7 +392,11 @@ export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
         title="Products"
         description="Inspect seller listings, sales, and reviews. Sellers manage product information."
       />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search products…">
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search products…"
+      >
         <Select
           value={String(search.status ?? "all")}
           onValueChange={(v) =>
@@ -431,38 +445,119 @@ export function AdminProductsListPage({ search, onSearchChange }: ListProps) {
         total={query.data?.total ?? 0}
         onPageChange={(page) => onSearchChange({ page })}
       />
-
     </div>
   );
 }
 
-
 export function AdminProductDetailPage({ productId }: { productId: string }) {
   const { data, isLoading, isError } = useProduct(productId);
-  const mutation = useProductModeration(getSession()?.displayName ?? "Admin preview");
+  const mutation = useProductModeration(
+    getSession()?.displayName ?? "Admin preview",
+  );
   const [moderationOpen, setModerationOpen] = useState(false);
   if (isLoading) return <Skeleton className="h-80 w-full" />;
   if (isError || !data) return <ErrorState title="Product not found" />;
-  return <div className="space-y-6">
-    <Button variant="outline" asChild><Link to="/admin/products">Back to products</Link></Button>
-    <PageHeader title={data.name} description={data.sku} actions={<Button variant={data.moderation?.blocked ? "outline" : "destructive"} onClick={() => setModerationOpen(true)}>{data.moderation?.blocked ? "Lift restriction" : "Restrict listing"}</Button>} />
-    <DescriptionList items={[
-      { label: "Seller", value: <Link to="/admin/sellers/$sellerId" params={{ sellerId: data.sellerId }} className="text-primary hover:underline">{data.sellerName}</Link> },
-      { label: "Category", value: data.category }, { label: "Price", value: formatMoney(data.price, data.currency) },
-      { label: "Stock", value: data.stock }, { label: "Units sold (delivered)", value: productSales(data.id) },
-      { label: "Listing status", value: data.status }, { label: "Platform", value: data.moderation?.blocked ? "Restricted" : "Allowed" },
-      { label: "Updated", value: formatDate(data.updatedAt) },
-    ]} />
-    <p className="text-sm text-muted-foreground">{data.description}</p>
-    {data.moderation && <p className="text-sm">Last moderation: {data.moderation.reason} · {data.moderation.by} · {formatDate(data.moderation.at)}</p>}
-    <div className="space-y-3"><h2 className="text-lg font-semibold">Product reviews</h2><DataTable data={productReviews(data.id)} columns={[
-      { accessorKey: "buyerName", header: "Buyer" }, { accessorKey: "rating", header: "Rating" }, { accessorKey: "title", header: "Title" }, { accessorKey: "body", header: "Review" }, { accessorKey: "status", header: "Status" },
-      actionsColumn<Review>((review) => [{ label: "View review", onSelect: () => { window.location.href = `/admin/reviews/${review.id}`; } }]),
-    ]} emptyMessage="No reviews yet." /></div>
-    <ConfirmDialog open={moderationOpen} onOpenChange={setModerationOpen} title={data.moderation?.blocked ? "Lift platform restriction" : "Restrict listing"} description="Restricting unpublishes the listing. Lifting a restriction lets the seller publish it again." requireReason onConfirm={async (reason) => {
-      try { await mutation.mutateAsync({ id: data.id, blocked: !data.moderation?.blocked, reason: reason ?? "" }); toast.success("Platform restriction updated"); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update restriction"); }
-    }} />
-  </div>;
+  return (
+    <div className="space-y-6">
+      <Button variant="outline" asChild>
+        <Link to="/admin/products">Back to products</Link>
+      </Button>
+      <PageHeader
+        title={data.name}
+        description={data.sku}
+        actions={
+          <Button
+            variant={data.moderation?.blocked ? "outline" : "destructive"}
+            onClick={() => setModerationOpen(true)}
+          >
+            {data.moderation?.blocked ? "Lift restriction" : "Restrict listing"}
+          </Button>
+        }
+      />
+      <DescriptionList
+        items={[
+          {
+            label: "Seller",
+            value: (
+              <Link
+                to="/admin/sellers/$sellerId"
+                params={{ sellerId: data.sellerId }}
+                className="text-primary hover:underline"
+              >
+                {data.sellerName}
+              </Link>
+            ),
+          },
+          { label: "Category", value: data.category },
+          { label: "Price", value: formatMoney(data.price, data.currency) },
+          { label: "Stock", value: data.stock },
+          { label: "Units sold (delivered)", value: productSales(data.id) },
+          { label: "Listing status", value: data.status },
+          {
+            label: "Platform",
+            value: data.moderation?.blocked ? "Restricted" : "Allowed",
+          },
+          { label: "Updated", value: formatDate(data.updatedAt) },
+        ]}
+      />
+      <p className="text-sm text-muted-foreground">{data.description}</p>
+      {data.moderation && (
+        <p className="text-sm">
+          Last moderation: {data.moderation.reason} · {data.moderation.by} ·{" "}
+          {formatDate(data.moderation.at)}
+        </p>
+      )}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Product reviews</h2>
+        <DataTable
+          data={productReviews(data.id)}
+          columns={[
+            { accessorKey: "buyerName", header: "Buyer" },
+            { accessorKey: "rating", header: "Rating" },
+            { accessorKey: "title", header: "Title" },
+            { accessorKey: "body", header: "Review" },
+            { accessorKey: "status", header: "Status" },
+            actionsColumn<Review>((review) => [
+              {
+                label: "View review",
+                onSelect: () => {
+                  window.location.href = `/admin/reviews/${review.id}`;
+                },
+              },
+            ]),
+          ]}
+          emptyMessage="No reviews yet."
+        />
+      </div>
+      <ConfirmDialog
+        open={moderationOpen}
+        onOpenChange={setModerationOpen}
+        title={
+          data.moderation?.blocked
+            ? "Lift platform restriction"
+            : "Restrict listing"
+        }
+        description="Restricting unpublishes the listing. Lifting a restriction lets the seller publish it again."
+        requireReason
+        onConfirm={async (reason) => {
+          try {
+            await mutation.mutateAsync({
+              id: data.id,
+              blocked: !data.moderation?.blocked,
+              reason: reason ?? "",
+            });
+            toast.success("Platform restriction updated");
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Could not update restriction",
+            );
+          }
+        }}
+      />
+    </div>
+  );
 }
 
 function ModerationListPage<T extends { id: string }>({
@@ -488,14 +583,18 @@ function ModerationListPage<T extends { id: string }>({
   statusOptions: { value: string; label: string }[];
 }) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useList({ ...search, q: debouncedQ || undefined });
 
   return (
     <div>
       <PageHeader title={title} description={description} />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder={`Search ${title.toLowerCase()}…`}>
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder={`Search ${title.toLowerCase()}…`}
+      >
         <Select
           value={String(search.status ?? "all")}
           onValueChange={(v) =>
@@ -564,14 +663,18 @@ const reviewColumns: ColumnDef<Review>[] = [
 
 export function AdminReviewsListPage(props: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(props.search.q ?? ""));
+  const [q, setQ] = useListQuery(props.search, props.onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useReviews({ ...props.search, q: debouncedQ || undefined });
 
   return (
     <div>
       <PageHeader title="Reviews" description="Moderate customer reviews." />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search reviews…">
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search reviews…"
+      >
         <Select
           value={String(props.search.status ?? "all")}
           onValueChange={(v) =>
@@ -692,14 +795,18 @@ const qaColumns: ColumnDef<Question>[] = [
 
 export function AdminQuestionsListPage(props: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(props.search.q ?? ""));
+  const [q, setQ] = useListQuery(props.search, props.onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useQuestions({ ...props.search, q: debouncedQ || undefined });
 
   return (
     <div>
       <PageHeader title="Q&A" description="Moderate product questions." />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search questions…" />
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search questions…"
+      />
       <DataTable
         columns={[
           ...qaColumns,
@@ -783,7 +890,7 @@ const reportColumns: ColumnDef<ProductReport>[] = [
 
 export function AdminReportsListPage(props: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(props.search.q ?? ""));
+  const [q, setQ] = useListQuery(props.search, props.onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useReports({ ...props.search, q: debouncedQ || undefined });
 
@@ -793,7 +900,11 @@ export function AdminReportsListPage(props: ListProps) {
         title="Product reports"
         description="Investigate listing reports."
       />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search reports…" />
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search reports…"
+      />
       <DataTable
         columns={[
           ...reportColumns,

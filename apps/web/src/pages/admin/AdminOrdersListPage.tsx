@@ -1,3 +1,4 @@
+import { useListQuery } from "@/hooks/useListQuery";
 import { useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/patterns/PageHeader";
@@ -19,7 +20,6 @@ import {
 import { useOrders } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useState } from "react";
 import type { Order, OrderStatus } from "@/types";
 import type { OrdersSearch } from "@/lib/router/search";
 
@@ -45,9 +45,7 @@ const columns: ColumnDef<Order>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <StatusChip kind="order" status={row.original.status} />
-    ),
+    cell: ({ row }) => <StatusChip kind="order" status={row.original.status} />,
   },
   {
     accessorKey: "createdAt",
@@ -63,7 +61,7 @@ type Props = {
 
 export function AdminOrdersListPage({ search, onSearchChange }: Props) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(search.q ?? "");
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const effectiveSearch = { ...search, q: debouncedQ || undefined };
   const query = useOrders(effectiveSearch);

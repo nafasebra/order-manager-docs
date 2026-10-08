@@ -59,4 +59,10 @@ export function ListPagination({
   );
 }
 
-export { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious };
+export {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+};

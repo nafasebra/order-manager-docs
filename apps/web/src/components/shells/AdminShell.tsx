@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { template } from "@/config/template";
 import {
   LayoutDashboard,
   BarChart3,
@@ -42,23 +43,22 @@ function canView(user: SessionUser | null, area: PermissionArea) {
   return Boolean(user?.isSuperuser || filterNavByGrants(user, area));
 }
 
-function section(
-  title: string,
-  items: NavItem[],
-): NavSection | null {
+function section(title: string, items: NavItem[]): NavSection | null {
   return items.length ? { title, items } : null;
 }
 
 export function AdminShell({ user, onLogout, children }: AdminShellProps) {
   const sections: NavSection[] = [
     {
-      items: [{ label: "Overview", to: "/admin", icon: LayoutDashboard }],
+      items: canView(user, "analytics")
+        ? [{ label: "Overview", to: "/admin", icon: LayoutDashboard }]
+        : [],
     },
     section("Insights", [
       ...(canView(user, "analytics")
         ? [{ label: "Analytics", to: "/admin/analytics", icon: BarChart3 }]
         : []),
-      ...(canView(user, "marketing")
+      ...(template.modules.marketing && canView(user, "marketing")
         ? [{ label: "Campaigns", to: "/admin/marketing", icon: Megaphone }]
         : []),
       ...(canView(user, "crm")
@@ -66,7 +66,9 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
         : []),
     ] as NavItem[]),
     section("Commerce", [
-      { label: "Coupons", to: "/admin/coupons", icon: TicketPercent },
+      ...(template.modules.coupons && canView(user, "marketing")
+        ? [{ label: "Coupons", to: "/admin/coupons", icon: TicketPercent }]
+        : []),
       ...(canView(user, "orders")
         ? [{ label: "Orders", to: "/admin/orders", icon: ShoppingCart }]
         : []),
@@ -121,10 +123,10 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
         : []),
     ] as NavItem[]),
     section("Content", [
-      ...(canView(user, "website")
+      ...(template.modules.content && canView(user, "website")
         ? [{ label: "Website", to: "/admin/website", icon: Globe }]
         : []),
-      ...(canView(user, "blog")
+      ...(template.modules.content && canView(user, "blog")
         ? [{ label: "Blog", to: "/admin/blog", icon: Newspaper }]
         : []),
     ] as NavItem[]),
@@ -140,8 +142,14 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
         : []),
     ] as NavItem[]),
     section("Settings", [
-      ...(canView(user, "admin_management")
-        ? [{ label: "Health Center", to: "/admin/settings/health", icon: Activity }]
+      ...(template.modules.health && canView(user, "admin_management")
+        ? [
+            {
+              label: "Health Center",
+              to: "/admin/settings/health",
+              icon: Activity,
+            },
+          ]
         : []),
       ...(canView(user, "admin_management")
         ? [
@@ -163,7 +171,7 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
   return (
     <AppShell
       panel="admin"
-      brand="Clean Commerce"
+      brand={template.brand}
       subtitle="Admin"
       sections={sections}
       user={user}

@@ -1,6 +1,7 @@
-const defaultCurrency = "GBP";
-const defaultLocale = "en-GB";
-const defaultTimeZone = "UTC";
+import { template } from "@/config/template";
+const defaultCurrency = template.currency;
+const defaultLocale = template.locale;
+const defaultTimeZone = template.timeZone;
 
 export function formatMoney(
   amount: number,

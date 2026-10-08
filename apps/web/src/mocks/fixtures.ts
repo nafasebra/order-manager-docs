@@ -9,6 +9,7 @@ import type {
   CrmContact,
   Invoice,
   IncomePoint,
+  Grant,
   Order,
   OrderStatus,
   Product,
@@ -25,14 +26,16 @@ import type {
   WaySettingRow,
 } from "@/types";
 
+import { template } from "@/config/template";
+import { readHealthSettings } from "@/config/health";
+import { seedDate } from "./clock";
+
 function pad(n: number, width = 4) {
   return String(n).padStart(width, "0");
 }
 
 function daysAgo(n: number) {
-  const d = new Date("2026-09-01T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString();
+  return seedDate(-n);
 }
 
 function pick<T>(arr: readonly T[], i: number): T {
@@ -218,7 +221,7 @@ export const products: Product[] = Array.from({ length: 80 }, (_, i) => {
     sellerId: seller.id,
     sellerName: seller.shopName,
     price: 12 + ((i * 7) % 200) + (i % 10) * 0.5,
-    currency: "GBP",
+    currency: template.currency,
     stock: (i * 3) % 120,
     status,
     category: pick(categoryNames, i),
@@ -244,10 +247,41 @@ export const orders: Order[] = Array.from({ length: 120 }, (_, i) => {
   const sellerA = pick(sellers, i);
   const sellerB = pick(sellers, i + 5);
   const status = pick(orderStatuses, i);
-  const product = pick(products, i);
+  const product = products.find((item) => item.sellerId === sellerA.id)!;
+  const secondProduct = products.find((item) => item.sellerId === sellerB.id)!;
   const qty = (i % 3) + 1;
   const unitPrice = product.price;
-  const total = Math.round(unitPrice * qty * 100) / 100;
+  const lineItems = [
+    {
+      id: `li-${pad(n)}-1`,
+      productId: product.id,
+      productName: product.name,
+      sku: product.sku,
+      quantity: qty,
+      unitPrice,
+      sellerId: sellerA.id,
+      sellerName: sellerA.shopName,
+    },
+    ...(i % 8 === 0
+      ? [
+          {
+            id: `li-${pad(n)}-2`,
+            productId: secondProduct.id,
+            productName: secondProduct.name,
+            sku: secondProduct.sku,
+            quantity: 1,
+            unitPrice: secondProduct.price,
+            sellerId: sellerB.id,
+            sellerName: sellerB.shopName,
+          },
+        ]
+      : []),
+  ];
+  const total =
+    Math.round(
+      lineItems.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0) *
+        100,
+    ) / 100;
   const createdAt = daysAgo(90 - (i % 90));
   return {
     id: `order-${pad(n)}`,
@@ -256,30 +290,16 @@ export const orders: Order[] = Array.from({ length: 120 }, (_, i) => {
     buyerId: buyer.id,
     buyerName: buyer.name,
     buyerEmail: buyer.email,
-    sellerIds: [sellerA.id, ...(i % 4 === 0 ? [sellerB.id] : [])],
-    sellerNames: [
-      sellerA.shopName,
-      ...(i % 4 === 0 ? [sellerB.shopName] : []),
-    ],
+    sellerIds: [sellerA.id, ...(i % 8 === 0 ? [sellerB.id] : [])],
+    sellerNames: [sellerA.shopName, ...(i % 8 === 0 ? [sellerB.shopName] : [])],
     total,
-    currency: "GBP",
+    currency: template.currency,
     createdAt,
     updatedAt: daysAgo(Math.max(0, 90 - (i % 90) - 1)),
     shippingAddress: buyer.addresses[0],
     deliveryMethodSnapshot: "Standard shipping — 3–5 business days",
     paymentWaySnapshot: "Bank transfer — Include order number",
-    lineItems: [
-      {
-        id: `li-${pad(n)}-1`,
-        productId: product.id,
-        productName: product.name,
-        sku: product.sku,
-        quantity: qty,
-        unitPrice,
-        sellerId: sellerA.id,
-        sellerName: sellerA.shopName,
-      },
-    ],
+    lineItems,
     history: [
       {
         id: `oh-${pad(n)}-1`,
@@ -372,7 +392,7 @@ export const invoices: Invoice[] = Array.from({ length: 40 }, (_, i) => {
     orderId: order.id,
     orderNumber: order.orderNumber,
     total: order.total,
-    currency: "GBP",
+    currency: template.currency,
     issuedAt: status === "draft" ? undefined : daysAgo(50 - (i % 50)),
     createdAt: daysAgo(55 - (i % 50)),
     lines: order.lineItems.map((li) => ({
@@ -384,28 +404,31 @@ export const invoices: Invoice[] = Array.from({ length: 40 }, (_, i) => {
   };
 });
 
-export const transactions: Transaction[] = Array.from({ length: 70 }, (_, i) => {
-  const n = i + 1;
-  const order = pick(orders, i);
-  const types = ["payment", "refund", "payout", "adjustment"] as const;
-  const type = pick(types, i);
-  const statuses = ["pending", "completed", "failed"] as const;
-  return {
-    id: `txn-${pad(n)}`,
-    reference: `TXN-${5000 + n}`,
-    type,
-    status: pick(statuses, i),
-    amount: type === "refund" ? -order.total * 0.5 : order.total,
-    currency: "GBP",
-    orderId: order.id,
-    invoiceId: pick(invoices, i).id,
-    buyerId: order.buyerId,
-    sellerId: order.sellerIds[0],
-    externalRef: `ext_${pad(n, 6)}`,
-    createdAt: daysAgo(45 - (i % 45)),
-    note: type === "refund" ? "Partial refund" : undefined,
-  };
-});
+export const transactions: Transaction[] = Array.from(
+  { length: 70 },
+  (_, i) => {
+    const n = i + 1;
+    const order = pick(orders, i);
+    const types = ["payment", "refund", "payout", "adjustment"] as const;
+    const type = pick(types, i);
+    const statuses = ["pending", "completed", "failed"] as const;
+    return {
+      id: `txn-${pad(n)}`,
+      reference: `TXN-${5000 + n}`,
+      type,
+      status: pick(statuses, i),
+      amount: type === "refund" ? -order.total * 0.5 : order.total,
+      currency: template.currency,
+      orderId: order.id,
+      invoiceId: pick(invoices, i).id,
+      buyerId: order.buyerId,
+      sellerId: order.sellerIds[0],
+      externalRef: `ext_${pad(n, 6)}`,
+      createdAt: daysAgo(45 - (i % 45)),
+      note: type === "refund" ? "Partial refund" : undefined,
+    };
+  },
+);
 
 export const reviews: Review[] = Array.from({ length: 45 }, (_, i) => {
   const n = i + 1;
@@ -451,7 +474,12 @@ export const productReports: ProductReport[] = Array.from(
     const n = i + 1;
     const product = pick(products, i + 4);
     const buyer = pick(buyers, i + 2);
-    const statuses = ["open", "investigating", "resolved", "dismissed"] as const;
+    const statuses = [
+      "open",
+      "investigating",
+      "resolved",
+      "dismissed",
+    ] as const;
     return {
       id: `rpt-${pad(n)}`,
       productId: product.id,
@@ -474,23 +502,27 @@ export const campaigns: Campaign[] = Array.from({ length: 20 }, (_, i) => {
   const n = i + 1;
   const statuses = ["draft", "scheduled", "active", "paused", "ended"] as const;
   const status = pick(statuses, i);
-  const campaignDate = (offsetDays: number) => new Date(Date.now() + offsetDays * 86400000).toISOString();
+  const campaignDate = seedDate;
   return {
     id: `camp-${pad(n)}`,
-    name: pick(
-      ["Spring sale", "Welcome 10%", "Free ship weekend", "Flash deal"],
-      i,
-    ) + ` ${n}`,
+    name:
+      pick(
+        ["Spring sale", "Welcome 10%", "Free ship weekend", "Flash deal"],
+        i,
+      ) + ` ${n}`,
     status,
     discountType: i % 2 === 0 ? "percent" : "fixed",
     discountValue: i % 2 === 0 ? 10 + (i % 15) : 5 + (i % 20),
-      code: `SAVE${pad(n, 3)}`,
-      tenantIds: i % 3 === 0 ? [] : sellers.slice(i % 5, (i % 5) + 2).map((seller) => seller.id),
-      channel: pick(["storefront", "email", "social"] as const, i),
-      budget: 500 + i * 100,
-      usageLimit: 500,
-      description: "Marketplace promotion with participating store targeting.",
-      createdBy: "Template admin",
+    code: `SAVE${pad(n, 3)}`,
+    tenantIds:
+      i % 3 === 0
+        ? []
+        : sellers.slice(i % 5, (i % 5) + 2).map((seller) => seller.id),
+    channel: pick(["storefront", "email", "social"] as const, i),
+    budget: 500 + i * 100,
+    usageLimit: 500,
+    description: "Marketplace promotion with participating store targeting.",
+    createdBy: "Template admin",
     startsAt: campaignDate(status === "scheduled" ? 2 : -14),
     endsAt: campaignDate(status === "ended" ? -1 : 14),
     usageCount: i * 12,
@@ -634,19 +666,42 @@ export const admins: AdminAccount[] = [
   },
 ];
 
+export const roleTemplates: Record<"support" | "editor" | "custom", Grant[]> = {
+  support: structuredClone(admins[1].grants),
+  editor: structuredClone(admins[2].grants),
+  custom: [],
+};
+
 function buildIncomeStats(sellerId?: string): IncomePoint[] {
   const scoped = transactions.filter(
     (transaction) => !sellerId || transaction.sellerId === sellerId,
   );
   return Array.from({ length: 90 }, (_, index) => {
     const date = daysAgo(89 - index).slice(0, 10);
-    const daily = scoped.filter((transaction) => transaction.createdAt.startsWith(date));
+    const daily = scoped.filter((transaction) =>
+      transaction.createdAt.startsWith(date),
+    );
     const sum = (type: Transaction["type"], status: Transaction["status"]) =>
-      Math.round(daily.filter((transaction) => transaction.type === type && transaction.status === status)
-        .reduce((total, transaction) => total + Math.abs(transaction.amount), 0) * 100) / 100;
+      Math.round(
+        daily
+          .filter(
+            (transaction) =>
+              transaction.type === type && transaction.status === status,
+          )
+          .reduce(
+            (total, transaction) => total + Math.abs(transaction.amount),
+            0,
+          ) * 100,
+      ) / 100;
     const collected = sum("payment", "completed");
     const refunds = sum("refund", "completed");
-    return { date, collected, refunds, net: Math.round((collected - refunds) * 100) / 100, pending: sum("payment", "pending") };
+    return {
+      date,
+      collected,
+      refunds,
+      net: Math.round((collected - refunds) * 100) / 100,
+      pending: sum("payment", "pending"),
+    };
   });
 }
 
@@ -658,7 +713,8 @@ export function buildAdminStats(): AdminStats {
     const dayOrders = orders.filter((o) => o.createdAt.startsWith(date));
     return {
       date,
-      revenue: Math.round(dayOrders.reduce((s, o) => s + o.total, 0) * 100) / 100,
+      revenue:
+        Math.round(dayOrders.reduce((s, o) => s + o.total, 0) * 100) / 100,
       orders: dayOrders.length,
     };
   });
@@ -686,7 +742,11 @@ export function buildAdminStats(): AdminStats {
     }
   }
   const topProducts = [...productTotals.entries()]
-    .map(([id, v]) => ({ id, name: v.name, value: Math.round(v.value * 100) / 100 }))
+    .map(([id, v]) => ({
+      id,
+      name: v.name,
+      value: Math.round(v.value * 100) / 100,
+    }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
   const sellerTotals = new Map<string, { name: string; value: number }>();
@@ -701,7 +761,11 @@ export function buildAdminStats(): AdminStats {
     });
   }
   const topSellers = [...sellerTotals.entries()]
-    .map(([id, v]) => ({ id, name: v.name, value: Math.round(v.value * 100) / 100 }))
+    .map(([id, v]) => ({
+      id,
+      name: v.name,
+      value: Math.round(v.value * 100) / 100,
+    }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
 
@@ -726,9 +790,10 @@ export function buildAdminStats(): AdminStats {
 
 export function buildSellerStats(sellerId: string, days?: number): SellerStats {
   const startDate = days ? daysAgo(days - 1).slice(0, 10) : undefined;
-  const sellerOrders = orders.filter((o) =>
-    o.lineItems.some((item) => item.sellerId === sellerId) &&
-    (!startDate || o.createdAt.slice(0, 10) >= startDate),
+  const sellerOrders = orders.filter(
+    (o) =>
+      o.lineItems.some((item) => item.sellerId === sellerId) &&
+      (!startDate || o.createdAt.slice(0, 10) >= startDate),
   );
   const sellerProducts = products.filter((p) => p.sellerId === sellerId);
   const sellerTickets = tickets.filter((t) => t.sellerId === sellerId);
@@ -826,9 +891,11 @@ export function buildSellerStats(sellerId: string, days?: number): SellerStats {
   return {
     income: buildIncomeStats(sellerId),
     itemsOrdered: sellerOrders.reduce(
-      (total, order) => total + order.lineItems
-        .filter((item) => item.sellerId === sellerId)
-        .reduce((quantity, item) => quantity + item.quantity, 0),
+      (total, order) =>
+        total +
+        order.lineItems
+          .filter((item) => item.sellerId === sellerId)
+          .reduce((quantity, item) => quantity + item.quantity, 0),
       0,
     ),
     revenue: Math.round(revenue * 100) / 100,
@@ -845,7 +912,10 @@ export function buildSellerStats(sellerId: string, days?: number): SellerStats {
     topProducts,
     topSellingProducts,
     lowStock: sellerProducts
-      .filter((p) => p.stock < 10 && p.status === "published")
+      .filter(
+        (p) =>
+          p.stock <= readHealthSettings().lowStock && p.status === "published",
+      )
       .sort((a, b) => a.stock - b.stock)
       .slice(0, 8),
     recentTickets: [...sellerTickets]

@@ -79,9 +79,7 @@ const recentColumns: ColumnDef<Order>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <StatusChip kind="order" status={row.original.status} />
-    ),
+    cell: ({ row }) => <StatusChip kind="order" status={row.original.status} />,
   },
   {
     accessorKey: "createdAt",

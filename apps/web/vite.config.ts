@@ -18,4 +18,23 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (
+            /node_modules[\\/]react(?:-dom)?[\\/]/.test(id) ||
+            /node_modules[\\/]scheduler[\\/]/.test(id)
+          )
+            return "react-vendor";
+          if (
+            /node_modules[\\/]@tanstack[\\/](react-router|router-core|history|react-query|query-core)[\\/]/.test(
+              id,
+            )
+          )
+            return "data-vendor";
+        },
+      },
+    },
+  },
 });

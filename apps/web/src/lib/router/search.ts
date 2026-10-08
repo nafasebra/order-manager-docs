@@ -5,6 +5,7 @@ export const listSearchSchema = z.object({
   pageSize: z.number().int().min(1).max(100).catch(25),
   sort: z.string().optional(),
   q: z.string().optional(),
+  status: z.string().optional(),
 });
 
 export const orderStatusSchema = z.enum([

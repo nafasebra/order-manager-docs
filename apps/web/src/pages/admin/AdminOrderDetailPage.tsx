@@ -88,10 +88,14 @@ export function AdminOrderDetailPage({ orderId }: Props) {
             <Button
               variant="outline"
               type="button"
-              disabled={data.status === "delivered" || data.status === "canceled"}
+              disabled={
+                data.status === "delivered" || data.status === "canceled"
+              }
               onClick={() => {
-                mutate.mutate({ id: data.id, action: "advance" });
-                toast.success("Status advanced (mock)");
+                mutate.mutate(
+                  { id: data.id, action: "advance" },
+                  { onSuccess: () => toast.success("Order status updated") },
+                );
               }}
             >
               Advance
@@ -99,7 +103,9 @@ export function AdminOrderDetailPage({ orderId }: Props) {
             <Button
               variant="destructive"
               type="button"
-              disabled={data.status === "canceled"}
+              disabled={
+                data.status === "canceled" || data.status === "delivered"
+              }
               onClick={() => setCancelOpen(true)}
             >
               Cancel order

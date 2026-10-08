@@ -33,18 +33,10 @@ export type Grant = {
   actions: Action[];
 };
 
-export type OrderStatus =
-  | "processing"
-  | "shipping"
-  | "delivered"
-  | "canceled";
+export type OrderStatus = "processing" | "shipping" | "delivered" | "canceled";
 
 export type TicketStatus =
-  | "open"
-  | "in_progress"
-  | "waiting"
-  | "resolved"
-  | "closed";
+  "open" | "in_progress" | "waiting" | "resolved" | "closed";
 
 export type ContentStatus = "draft" | "published" | "archived";
 
@@ -60,7 +52,8 @@ export type ModerationStatus = "pending" | "approved" | "hidden" | "deleted";
 
 export type ReportStatus = "open" | "investigating" | "resolved" | "dismissed";
 
-export type CampaignStatus = "draft" | "scheduled" | "active" | "paused" | "ended";
+export type CampaignStatus =
+  "draft" | "scheduled" | "active" | "paused" | "ended";
 
 export type SessionUser = {
   id: string;

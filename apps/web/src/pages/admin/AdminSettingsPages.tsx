@@ -1,3 +1,4 @@
+import { useListQuery } from "@/hooks/useListQuery";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -44,7 +45,12 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useAdmin, useAdmins, useMockMutation } from "@/lib/api/resources";
+import {
+  useAdmin,
+  useAdmins,
+  useMockMutation,
+  useRoleTemplates,
+} from "@/lib/api/resources";
 import { formatDate } from "@/lib/formats";
 import type {
   Action,
@@ -77,7 +83,7 @@ const columns: ColumnDef<AdminAccount>[] = [
 
 export function AdminAdminsListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useAdmins({ ...search, q: debouncedQ || undefined });
 
@@ -97,7 +103,11 @@ export function AdminAdminsListPage({ search, onSearchChange }: ListProps) {
           </div>
         }
       />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search admins…" />
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search admins…"
+      />
       <DataTable
         columns={[
           ...columns,
@@ -191,7 +201,10 @@ export function AdminAdminCreatePage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Role template</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue />
@@ -273,21 +286,41 @@ function PermissionMatrix({
         : grants.filter((g) => g.area !== area);
     } else {
       next = grants.map((g) =>
-        g.area === area
-          ? { ...g, actions: [...g.actions, action] }
-          : g,
+        g.area === area ? { ...g, actions: [...g.actions, action] } : g,
       );
     }
     onChange(next);
   }
 
   return (
-    <DataTable dense data={AREAS.map((area) => ({ area }))} columns={[
-      { accessorKey: "area", header: "Area", cell: ({ row }) => <span className="font-medium capitalize">{row.original.area.replace(/_/g, " ")}</span> },
-      ...ACTIONS.map((action) => ({ id: action, header: action.replace(/_/g, " "), accessorFn: (row: { area: PermissionArea }) => has(row.area, action),
-        cell: ({ row }: { row: { original: { area: PermissionArea } } }) => <Checkbox checked={has(row.original.area, action)} disabled={readOnly} onCheckedChange={() => toggle(row.original.area, action)} aria-label={`${row.original.area} ${action}`} />,
-      })),
-    ]} />
+    <DataTable
+      dense
+      data={AREAS.map((area) => ({ area }))}
+      columns={[
+        {
+          accessorKey: "area",
+          header: "Area",
+          cell: ({ row }) => (
+            <span className="font-medium capitalize">
+              {row.original.area.replace(/_/g, " ")}
+            </span>
+          ),
+        },
+        ...ACTIONS.map((action) => ({
+          id: action,
+          header: action.replace(/_/g, " "),
+          accessorFn: (row: { area: PermissionArea }) => has(row.area, action),
+          cell: ({ row }: { row: { original: { area: PermissionArea } } }) => (
+            <Checkbox
+              checked={has(row.original.area, action)}
+              disabled={readOnly}
+              onCheckedChange={() => toggle(row.original.area, action)}
+              aria-label={`${row.original.area} ${action}`}
+            />
+          ),
+        })),
+      ]}
+    />
   );
 }
 
@@ -358,28 +391,50 @@ export function AdminAdminDetailPage({ adminId }: { adminId: string }) {
 }
 
 export function AdminRolesPage() {
-  const [grants, setGrants] = useState<Grant[]>([
-    { area: "tickets", actions: ["view", "respond", "update_status"] },
-    { area: "buyers", actions: ["view"] },
-    { area: "sellers", actions: ["view"] },
-    { area: "orders", actions: ["view"] },
-  ]);
-
+  const query = useRoleTemplates();
+  const mutation = useMockMutation("role-templates");
+  const [role, setRole] = useState<"support" | "editor" | "custom">("support");
+  const [draft, setDraft] = useState<Grant[] | null>(null);
+  const grants = draft ?? query.data?.[role] ?? [];
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Permission matrix"
-        description="Template for support / custom roles. Save applies to the working draft (mock)."
+        title="Role templates"
+        description="Saved presets are applied to newly created staff accounts. Existing accounts keep their own grants."
         actions={
           <Button
-            type="button"
-            onClick={() => toast.success("Role template saved (mock)")}
+            disabled={mutation.isPending || !query.data}
+            onClick={async () => {
+              await mutation.mutateAsync({ role, grants });
+              setDraft(null);
+              toast.success("Role template saved");
+            }}
           >
             Save template
           </Button>
         }
       />
-      <PermissionMatrix grants={grants} onChange={setGrants} />
+      <Select
+        value={role}
+        onValueChange={(value) => {
+          setRole(value as typeof role);
+          setDraft(null);
+        }}
+      >
+        <SelectTrigger className="w-48" aria-label="Role template">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="support">Support</SelectItem>
+          <SelectItem value="editor">Editor</SelectItem>
+          <SelectItem value="custom">Custom</SelectItem>
+        </SelectContent>
+      </Select>
+      {query.isError ? (
+        <ErrorState title="Could not load role templates" />
+      ) : (
+        <PermissionMatrix grants={grants} onChange={setDraft} />
+      )}
     </div>
   );
 }

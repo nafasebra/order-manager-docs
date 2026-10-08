@@ -1,3 +1,5 @@
+import { useListQuery } from "@/hooks/useListQuery";
+import { template } from "@/config/template";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -69,14 +71,8 @@ import {
   useTicket,
 } from "@/lib/api/resources";
 import { formatMoney, formatDate } from "@/lib/formats";
-import { getSession } from "@/router";
-import type {
-  Address,
-  ListParams,
-  Order,
-  OrderStatus,
-  Ticket,
-} from "@/types";
+import { getSession } from "@/lib/auth/store";
+import type { Address, ListParams, Order, OrderStatus, Ticket } from "@/types";
 import type { OrdersSearch } from "@/lib/router/search";
 
 const DEMO_BUYER_ID = "buyer-0001";
@@ -325,14 +321,24 @@ export function BuyerProfilePage() {
                   <FormItem>
                     <FormLabel>{label}</FormLabel>
                     <FormControl>
-                      <Input type="password" autoComplete="new-password" {...field} />
+                      <Input
+                        type="password"
+                        autoComplete="new-password"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             ))}
-            <Button type="submit" variant="outline">
+            {template.demo && (
+              <p className="text-sm text-muted-foreground">
+                Demo accounts use fixed passwords. Password changes are
+                available after connecting an authentication provider.
+              </p>
+            )}
+            <Button type="submit" variant="outline" disabled={template.demo}>
               Update password
             </Button>
           </form>
@@ -576,9 +582,7 @@ const orderColumns: ColumnDef<Order>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <StatusChip kind="order" status={row.original.status} />
-    ),
+    cell: ({ row }) => <StatusChip kind="order" status={row.original.status} />,
   },
   {
     accessorKey: "createdAt",
@@ -595,7 +599,7 @@ type ListProps = {
 export function BuyerOrdersListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
   const buyerId = useBuyerId();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useBuyerOrders(buyerId, {
     ...search,
@@ -749,11 +753,18 @@ export function BuyerOrderDetailPage({ orderId }: { orderId: string }) {
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">Line items</h2>
-        <DataTable data={data.lineItems} columns={[
-          { accessorKey: "productName", header: "Product" },
-          { accessorKey: "quantity", header: "Qty" },
-          { accessorKey: "unitPrice", header: "Unit", cell: ({ row }) => formatMoney(row.original.unitPrice) },
-        ]} />
+        <DataTable
+          data={data.lineItems}
+          columns={[
+            { accessorKey: "productName", header: "Product" },
+            { accessorKey: "quantity", header: "Qty" },
+            {
+              accessorKey: "unitPrice",
+              header: "Unit",
+              cell: ({ row }) => formatMoney(row.original.unitPrice),
+            },
+          ]}
+        />
       </div>
 
       <div>
@@ -802,9 +813,7 @@ const ticketColumns: ColumnDef<Ticket>[] = [
   {
     accessorKey: "channel",
     header: "Channel",
-    cell: ({ row }) => (
-      <Badge variant="outline">{row.original.channel}</Badge>
-    ),
+    cell: ({ row }) => <Badge variant="outline">{row.original.channel}</Badge>,
   },
   {
     accessorKey: "status",
@@ -823,7 +832,7 @@ const ticketColumns: ColumnDef<Ticket>[] = [
 export function BuyerTicketsListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
   const buyerId = useBuyerId();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useBuyerTickets(buyerId, {
     ...search,
@@ -987,12 +996,16 @@ export function BuyerTicketDetailPage({ ticketId }: { ticketId: string }) {
               <p>{data.channel}</p>
             </div>
             <div>
-              <p className="text-xs uppercase text-muted-foreground">Priority</p>
+              <p className="text-xs uppercase text-muted-foreground">
+                Priority
+              </p>
               <p className="capitalize">{data.priority}</p>
             </div>
             {data.sellerName ? (
               <div>
-                <p className="text-xs uppercase text-muted-foreground">Seller</p>
+                <p className="text-xs uppercase text-muted-foreground">
+                  Seller
+                </p>
                 <p>{data.sellerName}</p>
               </div>
             ) : null}

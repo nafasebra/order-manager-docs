@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { describe, expect, it } from "vitest";
 import { can } from "@/lib/permissions/can";
 import type { SessionUser } from "@/types";

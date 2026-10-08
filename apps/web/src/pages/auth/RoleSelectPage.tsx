@@ -4,85 +4,46 @@ import { LayoutDashboard, Store, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { setSession } from "@/router";
-import type { ActorType, SessionUser } from "@/types";
+import { setSession } from "@/lib/auth/store";
+import {
+  demoAccounts,
+  demoSession,
+  sessionHome,
+  type DemoAccountKey,
+} from "@/lib/auth/demo";
+import { template } from "@/config/template";
 
-type RoleOption = {
-  id: ActorType;
-  title: string;
-  description: string;
-  icon: typeof LayoutDashboard;
-};
-
-const roles: RoleOption[] = [
-  {
-    id: "staff",
-    title: "Login as Admin",
-    description:
-      "Platform operations — orders, people, catalog, support, and settings.",
-    icon: LayoutDashboard,
-  },
-  {
-    id: "seller",
-    title: "Login as Seller",
-    description:
-      "Shop dashboard — products, orders, delivery methods, and payment ways.",
-    icon: Store,
-  },
-  {
-    id: "buyer",
-    title: "Login as Buyer",
-    description:
-      "Account home — profile, addresses, own orders, and support tickets.",
-    icon: User,
-  },
-];
-
-const panelPath: Record<ActorType, string> = {
-  staff: "/admin",
-  seller: "/seller",
-  buyer: "/account",
-};
-
-function sessionForRole(role: ActorType): SessionUser {
-  if (role === "staff") {
-    return {
-      id: "adm-1",
-      displayName: "Nafas Admin",
-      email: "admin@example.com",
-      actorType: "staff",
-      isSuperuser: true,
-      grants: [],
-    };
-  }
-  if (role === "seller") {
-    return {
-      id: "seller-0001",
-      displayName: "Shop Owner",
-      email: "seller1@example.com",
-      actorType: "seller",
-      shopName: "Northwind Goods",
-      sellerId: "seller-0001",
-    };
-  }
-  return {
-    id: "buyer-0001",
-    displayName: "Sarah Wilson",
-    email: "buyer1@example.com",
-    actorType: "buyer",
-    buyerId: "buyer-0001",
-  };
-}
+const roles = demoAccounts.map((account) => ({
+  id: account.key,
+  title: `Login as ${account.label}`,
+  description:
+    account.panel === "staff"
+      ? `${account.label} permissions in the admin panel.`
+      : `Explore your ${account.label.toLowerCase()} account.`,
+  icon:
+    account.panel === "staff"
+      ? LayoutDashboard
+      : account.panel === "seller"
+        ? Store
+        : User,
+  panel: account.panel,
+}));
 
 export function RoleSelectPage() {
   const navigate = useNavigate();
-  const [selected, setSelected] = useState<ActorType | null>(null);
+  const [selected, setSelected] = useState<DemoAccountKey | null>(null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!selected) return;
-    setSession(sessionForRole(selected));
-    void navigate({ to: panelPath[selected] });
+    const role = roles.find((item) => item.id === selected)!;
+    if (!template.demo) {
+      void navigate({ to: "/auth/login", search: { panel: role.panel } });
+      return;
+    }
+    const user = demoSession(selected);
+    setSession(user);
+    void navigate({ to: sessionHome(user) });
   }
 
   return (
@@ -90,11 +51,11 @@ export function RoleSelectPage() {
       <Card className="w-full max-w-lg">
         <CardHeader className="space-y-2 text-center sm:text-left">
           <CardTitle className="text-[28px] font-semibold leading-tight lg:text-[32px]">
-            Clean Commerce
+            {template.brand}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Choose a panel to continue. This sets a mock session for the
-            scaffold.
+            Choose an account to explore the dashboard. Demo changes can be
+            reset.
           </p>
         </CardHeader>
         <CardContent>
@@ -122,7 +83,7 @@ export function RoleSelectPage() {
                       value={role.id}
                       checked={isSelected}
                       onChange={() => setSelected(role.id)}
-                      className="mt-1 accent-[hsl(var(--primary))]"
+                      className="mt-1 accent-primary"
                     />
                     <Icon
                       className={cn(

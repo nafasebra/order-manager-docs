@@ -19,6 +19,7 @@ type WaySettingsListProps = {
   items: WaySetting[];
   onChange: (items: WaySetting[]) => void;
   paymentHint?: boolean;
+  readOnly?: boolean;
   className?: string;
 };
 
@@ -27,6 +28,7 @@ export function WaySettingsList({
   items,
   onChange,
   paymentHint,
+  readOnly,
   className,
 }: WaySettingsListProps) {
   const enabledCount = items.filter((i) => i.enabled).length;
@@ -38,12 +40,18 @@ export function WaySettingsList({
   }
 
   return (
-    <div className={cn("space-y-3 rounded-md border border-border bg-card p-4", className)}>
+    <div
+      className={cn(
+        "space-y-3 rounded-md border border-border bg-card p-4",
+        className,
+      )}
+    >
       <h3 className="text-lg font-semibold">{title}</h3>
       {paymentHint ? (
         <Alert>
           <AlertDescription>
-            No card numbers or CVV — payment ways are labels and instructions only.
+            No card numbers or CVV — payment ways are labels and instructions
+            only.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -63,6 +71,7 @@ export function WaySettingsList({
           <div className="flex flex-col gap-2 border-b border-border py-3 sm:flex-row sm:items-center sm:gap-4">
             <div className="flex min-w-40 items-center gap-2">
               <Switch
+                disabled={readOnly}
                 checked={item.enabled}
                 onCheckedChange={(enabled) => update(item.id, { enabled })}
                 aria-label={`Enable ${item.name}`}
@@ -79,7 +88,7 @@ export function WaySettingsList({
                   value={item.label}
                   onChange={(e) => update(item.id, { label: e.target.value })}
                   placeholder="Label"
-                  disabled={!item.enabled}
+                  disabled={readOnly || !item.enabled}
                 />
               </div>
               <div className="flex-[2] space-y-1">
@@ -93,7 +102,7 @@ export function WaySettingsList({
                     update(item.id, { instructions: e.target.value })
                   }
                   placeholder="Instructions"
-                  disabled={!item.enabled}
+                  disabled={readOnly || !item.enabled}
                 />
               </div>
             </div>

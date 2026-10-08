@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { template } from "@/config/template";
 import {
   LayoutDashboard,
   Package,
@@ -30,7 +31,9 @@ export function SellerShell({ user, onLogout, children }: SellerShellProps) {
         },
         { label: "Products", to: "/seller/products", icon: Package },
         { label: "Inventory", to: "/seller/inventory", icon: Boxes },
-        { label: "Coupons", to: "/seller/coupons", icon: TicketPercent },
+        ...(template.modules.coupons
+          ? [{ label: "Coupons", to: "/seller/coupons", icon: TicketPercent }]
+          : []),
         { label: "Orders", to: "/seller/orders", icon: ShoppingCart },
         {
           label: "Tickets",

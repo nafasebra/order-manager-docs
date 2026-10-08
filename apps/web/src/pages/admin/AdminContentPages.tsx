@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useListQuery } from "@/hooks/useListQuery";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
@@ -48,7 +48,6 @@ type ListProps = {
   onSearchChange: (next: Partial<ListParams>) => void;
 };
 
-
 const contactColumns: ColumnDef<CrmContact>[] = [
   { accessorKey: "name", header: "Name" },
   { accessorKey: "email", header: "Email" },
@@ -67,14 +66,18 @@ const contactColumns: ColumnDef<CrmContact>[] = [
 
 export function AdminCrmListPage({ search, onSearchChange }: ListProps) {
   const navigate = useNavigate();
-  const [q, setQ] = useState(String(search.q ?? ""));
+  const [q, setQ] = useListQuery(search, onSearchChange);
   const debouncedQ = useDebouncedValue(q);
   const query = useContacts({ ...search, q: debouncedQ || undefined });
 
   return (
     <div>
       <PageHeader title="CRM" description="Buyer and seller contacts." />
-      <FilterBar search={q} onSearchChange={setQ} searchPlaceholder="Search contacts…" />
+      <FilterBar
+        search={q}
+        onSearchChange={setQ}
+        searchPlaceholder="Search contacts…"
+      />
       <DataTable
         columns={[
           ...contactColumns,
@@ -240,9 +243,7 @@ const pageColumns: ColumnDef<SitePage>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <Badge variant="secondary">{row.original.status}</Badge>
-    ),
+    cell: ({ row }) => <Badge variant="secondary">{row.original.status}</Badge>,
   },
 ];
 
@@ -388,9 +389,7 @@ const postColumns: ColumnDef<BlogPost>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => (
-      <Badge variant="secondary">{row.original.status}</Badge>
-    ),
+    cell: ({ row }) => <Badge variant="secondary">{row.original.status}</Badge>,
   },
   {
     accessorKey: "updatedAt",

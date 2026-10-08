@@ -1,12 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  Menu,
-  Moon,
-  Sun,
-  LogOut,
-  type LucideIcon,
-} from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { template } from "@/config/template";
+import { setSession } from "@/lib/auth/store";
+import { resetDemoData } from "@/mocks/store";
+import { ConfirmDialog } from "@/components/patterns/ConfirmDialog";
+import { Menu, Moon, Sun, LogOut, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -62,6 +61,11 @@ function useThemeToggle() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
+    try {
+      localStorage.setItem("clean-commerce:theme", dark ? "dark" : "light");
+    } catch {
+      /* Optional preference. */
+    }
   }, [dark]);
 
   return { dark, toggle: () => setDark((v) => !v) };
@@ -142,6 +146,8 @@ export function AppShell({
   onLogout,
   children,
 }: AppShellProps) {
+  const queryClient = useQueryClient();
+  const [resetOpen, setResetOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { dark, toggle } = useThemeToggle();
   const initials =
@@ -167,7 +173,7 @@ export function AppShell({
         <NavLinks sections={sections} onNavigate={() => setMobileOpen(false)} />
       </ScrollArea>
       <Separator />
-      <div className="p-3 text-xs text-muted-foreground">Clean Commerce</div>
+      <div className="p-3 text-xs text-muted-foreground">{template.brand}</div>
     </div>
   );
 
@@ -216,7 +222,9 @@ export function AppShell({
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 px-2">
                 <Avatar className="h-7 w-7">
-                  <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                  <AvatarFallback className="text-xs">
+                    {initials}
+                  </AvatarFallback>
                 </Avatar>
                 <span className="hidden text-sm sm:inline">
                   {user?.displayName ?? "Account"}
@@ -233,6 +241,16 @@ export function AppShell({
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {template.demo && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link to="/">Switch demo account</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setResetOpen(true)}>
+                    Reset demo data
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuItem
                 onClick={onLogout}
                 className="text-destructive focus:text-destructive"
@@ -246,6 +264,19 @@ export function AppShell({
 
         <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
       </div>
+      <ConfirmDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        title="Reset demo data?"
+        description="Restore all seeded records and alert settings in this browser. Your demo changes will be removed."
+        destructive
+        onConfirm={() => {
+          resetDemoData();
+          setSession(null);
+          queryClient.clear();
+          window.location.assign("/");
+        }}
+      />
     </div>
   );
 }

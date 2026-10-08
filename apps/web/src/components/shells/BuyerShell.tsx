@@ -1,11 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  Home,
-  User,
-  MapPin,
-  ShoppingBag,
-  LifeBuoy,
-} from "lucide-react";
+import { Home, User, MapPin, ShoppingBag, LifeBuoy } from "lucide-react";
 import { AppShell, type NavSection } from "@/components/shells/AppShell";
 import type { SessionUser } from "@/types";
 

@@ -1,6 +1,6 @@
 import { useContext, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { TableSortContext } from "@/components/patterns/TableSortProvider";
+import { TableSortContext } from "@/components/patterns/tableSortContext";
 import {
   flexRender,
   getCoreRowModel,
@@ -53,12 +53,29 @@ export function DataTable<TData>({
 }: DataTableProps<TData>) {
   const remote = useContext(TableSortContext);
   const [localSorting, setLocalSorting] = useState<SortingState>([]);
-  const currentSorting = sorting ?? (remote ? (remote.sort ? [{ id: remote.sort.replace(/^-/, ""), desc: remote.sort.startsWith("-") }] : []) : localSorting);
-  const changeSorting: OnChangeFn<SortingState> = onSortingChange ?? ((updater) => {
-    const next = typeof updater === "function" ? updater(currentSorting) : updater;
-    if (remote) remote.setSort(next.length ? `${next[0].desc ? "-" : ""}${next[0].id}` : undefined);
-    else setLocalSorting(next);
-  });
+  const currentSorting =
+    sorting ??
+    (remote
+      ? remote.sort
+        ? [
+            {
+              id: remote.sort.replace(/^-/, ""),
+              desc: remote.sort.startsWith("-"),
+            },
+          ]
+        : []
+      : localSorting);
+  const changeSorting: OnChangeFn<SortingState> =
+    onSortingChange ??
+    ((updater) => {
+      const next =
+        typeof updater === "function" ? updater(currentSorting) : updater;
+      if (remote)
+        remote.setSort(
+          next.length ? `${next[0].desc ? "-" : ""}${next[0].id}` : undefined,
+        );
+      else setLocalSorting(next);
+    });
   const table = useReactTable({
     data,
     columns,
@@ -73,15 +90,21 @@ export function DataTable<TData>({
     manualSorting: Boolean(remote),
     enableMultiSort: false,
     sortDescFirst: false,
-    defaultColumn: { sortingFn: (a, b, id) => {
-      const av = a.getValue<unknown>(id);
-      const bv = b.getValue<unknown>(id);
-      if (av == null || av === "") return bv == null || bv === "" ? 0 : 1;
-      if (bv == null || bv === "") return -1;
-      if (typeof av === "number" && typeof bv === "number") return av - bv;
-      if (typeof av === "boolean" && typeof bv === "boolean") return Number(av) - Number(bv);
-      return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
-    } },
+    defaultColumn: {
+      sortingFn: (a, b, id) => {
+        const av = a.getValue<unknown>(id);
+        const bv = b.getValue<unknown>(id);
+        if (av == null || av === "") return bv == null || bv === "" ? 0 : 1;
+        if (bv == null || bv === "") return -1;
+        if (typeof av === "number" && typeof bv === "number") return av - bv;
+        if (typeof av === "boolean" && typeof bv === "boolean")
+          return Number(av) - Number(bv);
+        return String(av).localeCompare(String(bv), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+      },
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
@@ -93,16 +116,42 @@ export function DataTable<TData>({
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id} aria-sort={header.column.getCanSort() ? (header.column.getIsSorted() === "asc" ? "ascending" : header.column.getIsSorted() === "desc" ? "descending" : "none") : undefined}>
-                  {header.isPlaceholder
-                    ? null
-                    : header.column.getCanSort() ? <button type="button" className="flex w-full items-center gap-2 py-2 text-left" onClick={header.column.getToggleSortingHandler()}>
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getIsSorted() === "asc" ? <ArrowUp className="h-3 w-3 shrink-0" /> : header.column.getIsSorted() === "desc" ? <ArrowDown className="h-3 w-3 shrink-0" /> : <ArrowUpDown className="h-3 w-3 shrink-0 opacity-50" />}
-                      </button> : flexRender(
+                <TableHead
+                  key={header.id}
+                  aria-sort={
+                    header.column.getCanSort()
+                      ? header.column.getIsSorted() === "asc"
+                        ? "ascending"
+                        : header.column.getIsSorted() === "desc"
+                          ? "descending"
+                          : "none"
+                      : undefined
+                  }
+                >
+                  {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 py-2 text-left"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(
                         header.column.columnDef.header,
                         header.getContext(),
                       )}
+                      {header.column.getIsSorted() === "asc" ? (
+                        <ArrowUp className="h-3 w-3 shrink-0" />
+                      ) : header.column.getIsSorted() === "desc" ? (
+                        <ArrowDown className="h-3 w-3 shrink-0" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 shrink-0 opacity-50" />
+                      )}
+                    </button>
+                  ) : (
+                    flexRender(
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )
+                  )}
                 </TableHead>
               ))}
             </TableRow>
@@ -127,6 +176,20 @@ export function DataTable<TData>({
                   data-state={row.getIsSelected() && "selected"}
                   className={onRowClick ? "cursor-pointer" : undefined}
                   onClick={() => onRowClick?.(row.original)}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={
+                    onRowClick
+                      ? (event) => {
+                          if (
+                            event.target === event.currentTarget &&
+                            (event.key === "Enter" || event.key === " ")
+                          ) {
+                            event.preventDefault();
+                            onRowClick(row.original);
+                          }
+                        }
+                      : undefined
+                  }
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
