@@ -9,6 +9,7 @@ import {
   Settings,
   BarChart3,
   LifeBuoy,
+  Flag,
 } from "lucide-react";
 import { AppShell, type NavSection } from "@/components/shells/AppShell";
 import type { SessionUser } from "@/types";
@@ -35,6 +36,7 @@ export function SellerShell({ user, onLogout, children }: SellerShellProps) {
           ? [{ label: "Coupons", to: "/seller/coupons", icon: TicketPercent }]
           : []),
         { label: "Orders", to: "/seller/orders", icon: ShoppingCart },
+        { label: "My reports", to: "/seller/reports", icon: Flag },
         {
           label: "Tickets",
           to: "/seller/tickets",

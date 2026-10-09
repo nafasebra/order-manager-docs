@@ -302,6 +302,10 @@ export type Question = {
 };
 
 export type ProductReport = {
+  targetType?: "product" | "seller" | "buyer" | "review";
+  reporterType?: "seller" | "buyer";
+  publicOutcome?: string;
+  history?: { at: string; by: string; status: ReportStatus; internalNote: string }[];
   id: string;
   productId: string;
   productName: string;

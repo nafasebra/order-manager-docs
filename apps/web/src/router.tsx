@@ -1,5 +1,6 @@
 import {
   LoginPage,
+  AbuseReportsPage,
   AdminSettlementsPage,
   SessionExpiredPage,
   ForbiddenPage,
@@ -26,8 +27,6 @@ import {
   AdminProductsListPage,
   AdminQuestionDetailPage,
   AdminQuestionsListPage,
-  AdminReportDetailPage,
-  AdminReportsListPage,
   AdminReviewDetailPage,
   AdminReviewsListPage,
   AdminInvoiceCreatePage,
@@ -534,14 +533,8 @@ const adminQuestionDetailRoute = createRoute({
 const adminReportsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/product-reports",
-  validateSearch: listSearchSchema,
   beforeLoad: ({ context }) => requireGrant(context, "product_reports", "view"),
-  component: function Page() {
-    const { search, onSearchChange } = useListSearchSync(adminReportsRoute);
-    return (
-      <AdminReportsListPage search={search} onSearchChange={onSearchChange} />
-    );
-  },
+  component: AbuseReportsPage,
 });
 
 const adminReportDetailRoute = createRoute({
@@ -550,7 +543,7 @@ const adminReportDetailRoute = createRoute({
   beforeLoad: ({ context }) => requireGrant(context, "product_reports", "view"),
   component: function Page() {
     const { reportId } = adminReportDetailRoute.useParams();
-    return <AdminReportDetailPage reportId={reportId} />;
+    return <AbuseReportsPage reportId={reportId} />;
   },
 });
 
@@ -800,6 +793,12 @@ const sellerSettingsRoute = createRoute({
   component: SellerSettingsPage,
 });
 
+const sellerReportsRoute = createRoute({
+  getParentRoute: () => sellerLayoutRoute,
+  path: "/reports",
+  component: AbuseReportsPage,
+});
+
 const sellerTicketsRoute = createRoute({
   getParentRoute: () => sellerLayoutRoute,
   path: "/tickets",
@@ -881,6 +880,12 @@ const accountOrderDetailRoute = createRoute({
     const { orderId } = accountOrderDetailRoute.useParams();
     return <BuyerOrderDetailPage orderId={orderId} />;
   },
+});
+
+const accountReportsRoute = createRoute({
+  getParentRoute: () => accountLayoutRoute,
+  path: "/reports",
+  component: AbuseReportsPage,
 });
 
 const accountTicketsRoute = createRoute({
@@ -968,6 +973,7 @@ const routeTree = rootRoute.addChildren([
     sellerOrderDetailRoute,
     sellerSettingsRoute,
     sellerTicketsRoute,
+    sellerReportsRoute,
     sellerTicketDetailRoute,
   ]),
   accountLayoutRoute.addChildren([
@@ -977,6 +983,7 @@ const routeTree = rootRoute.addChildren([
     accountOrdersRoute,
     accountOrderDetailRoute,
     accountTicketsRoute,
+    accountReportsRoute,
     accountTicketDetailRoute,
   ]),
 ]);

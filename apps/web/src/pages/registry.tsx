@@ -1,4 +1,7 @@
 import { lazy } from "react";
+export const AbuseReportsPage = lazy(() =>
+  import("@/pages/shared/AbuseReportsPage").then((module) => ({ default: module.AbuseReportsPage })),
+);
 export const AdminSettlementsPage = lazy(() =>
   import("@/pages/admin/AdminSettlementsPage").then((module) => ({ default: module.AdminSettlementsPage })),
 );

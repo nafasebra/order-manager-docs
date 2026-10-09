@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Home, User, MapPin, ShoppingBag, LifeBuoy } from "lucide-react";
+import { Home, User, MapPin, ShoppingBag, LifeBuoy, Flag } from "lucide-react";
 import { AppShell, type NavSection } from "@/components/shells/AppShell";
 import type { SessionUser } from "@/types";
 
@@ -17,6 +17,7 @@ export function BuyerShell({ user, onLogout, children }: BuyerShellProps) {
         { label: "Profile", to: "/account/profile", icon: User },
         { label: "Addresses", to: "/account/addresses", icon: MapPin },
         { label: "Orders", to: "/account/orders", icon: ShoppingBag },
+        { label: "My reports", to: "/account/reports", icon: Flag },
         { label: "Tickets", to: "/account/tickets", icon: LifeBuoy },
       ],
     },
