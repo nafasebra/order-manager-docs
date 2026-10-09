@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { orders } from "@/mocks/fixtures";
+import { orders, transactions } from "@/mocks/fixtures";
 import { listResource } from "@/mocks/mockApi";
 import type { ListParams, Order } from "@/types";
 
@@ -41,5 +41,29 @@ export function useSellerOrder(sellerId: string, id: string) {
       if (!order) throw new Error("Order not found in your shop.");
       return sellerOrderView(order, sellerId);
     },
+  });
+}
+
+export function sellerOrderTransactions(sellerId: string, orderId: string) {
+  const order = orders.find(
+    (item) => item.id === orderId && item.sellerIds.includes(sellerId),
+  );
+  if (!order) throw new Error("Order not found in your shop.");
+  // Current fixtures contain whole-order amounts, not tenant allocations.
+  if (order.sellerIds.length > 1) return [];
+  return structuredClone(
+    transactions.filter(
+      (item) =>
+        item.orderId === orderId &&
+        item.sellerId === sellerId &&
+        (item.type === "payment" || item.type === "refund"),
+    ),
+  );
+}
+
+export function useSellerOrderTransactions(sellerId: string, orderId: string) {
+  return useQuery({
+    queryKey: ["seller-order-transactions", sellerId, orderId],
+    queryFn: () => sellerOrderTransactions(sellerId, orderId),
   });
 }
