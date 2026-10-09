@@ -1,0 +1,10 @@
+# INACTIVE TEMPLATE: uncomment patterns before using a directory build context.
+# node_modules
+# dist
+# coverage
+# .git
+# .env
+# .env.*
+# !.env.example
+# *.log
+# docs

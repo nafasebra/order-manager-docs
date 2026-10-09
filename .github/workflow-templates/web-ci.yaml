@@ -1,0 +1,34 @@
+# INACTIVE REFERENCE ONLY. Kept outside .github/workflows deliberately.
+# Every YAML line is commented; GitHub cannot execute this template.
+# To activate: review action pins and move a deliberately uncommented copy to
+# .github/workflows/web-ci.yaml. Do not uncomment explanatory comments.
+# name: Web checks
+# on:
+#   pull_request:
+#     paths:
+#       - "apps/web/**"
+#       - ".github/workflows/web-ci.yaml"
+#   workflow_dispatch:
+# permissions:
+#   contents: read
+# concurrency:
+#   group: web-ci-${{ github.ref }}
+#   cancel-in-progress: true
+# jobs:
+#   check:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 20
+#     defaults:
+#       run:
+#         working-directory: apps/web
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: "22"
+#           cache: npm
+#           cache-dependency-path: apps/web/package-lock.json
+#       - run: npm ci
+#       - run: npm run check
+# Version tags above are proposals, not validated immutable action pins.
+# Review official action support and pin approved commit SHAs before activation.

@@ -1,0 +1,70 @@
+# INACTIVE REFERENCE ONLY. No automatic deployment or image publication.
+# Outside .github/workflows, with every YAML line commented intentionally.
+# Activation requires reviewing permissions, action pins, registry settings,
+# and an environment named marketplace-release with required reviewers.
+# This template publishes an image only; it does not connect to a server.
+# name: Publish web image manually
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       release_tag:
+#         description: "Unique approved release identifier"
+#         required: true
+#         type: string
+# permissions:
+#   contents: read
+# concurrency:
+#   group: web-image-release
+#   cancel-in-progress: false
+# jobs:
+#   publish:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 30
+#     environment: marketplace-release
+#     permissions:
+#       contents: read
+#       packages: write
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: "22"
+#           cache: npm
+#           cache-dependency-path: apps/web/package-lock.json
+#       - name: Validate release identifier
+#         env:
+#           RELEASE_TAG: ${{ inputs.release_tag }}
+#         run: |
+#           case "$RELEASE_TAG" in
+#             ''|*[!a-zA-Z0-9_.-]*) echo "Invalid release tag"; exit 1 ;;
+#           esac
+#       - name: Validate application
+#         working-directory: apps/web
+#         run: |
+#           npm ci
+#           npm run check
+#       - name: Authenticate to GitHub Container Registry
+#         env:
+#           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+#       - name: Build and publish approved image
+#         working-directory: apps/web
+#         env:
+#           RELEASE_TAG: ${{ inputs.release_tag }}
+#         run: |
+#           IMAGE_REPOSITORY="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')-web"
+#           IMAGE_REF="$IMAGE_REPOSITORY:$RELEASE_TAG"
+#           if docker manifest inspect "$IMAGE_REF" > /dev/null 2>&1; then
+#             echo "Release tag already exists; choose a new identifier"
+#             exit 1
+#           fi
+#           tar -cf - Dockerfile package.json package-lock.json tsconfig.json \
+#             tsconfig.node.json vite.config.ts index.html src | \
+#             docker build --pull --tag "$IMAGE_REF" \
+#               --build-arg VITE_DEMO_MODE=true --build-arg VITE_API_BASE_URL=/api/v1 -
+#           docker push "$IMAGE_REF"
+#           printf 'Published image: `%s`\nRecord the pushed digest before server deployment.\n' "$IMAGE_REF" >> "$GITHUB_STEP_SUMMARY"
+# Existing-tag checks depend on registry visibility/authentication; verify
+# registry failures manually. Enforce immutable release tags operationally.
+# Require browser QA approval before publishing. Never run this with secrets
+# against untrusted pull-request code. No SSH or server deployment is included.

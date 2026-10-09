@@ -82,6 +82,8 @@ Complete [browser QA](./docs/QA.md) before distribution.
 
 ## Deploy
 
+See the [Persian server deployment guide](./docs/DEPLOYMENT.md) and [Docker notes](./docs/DOCKER.md). Deployment scripts are intentionally commented and inactive.
+
 Run `npm run build` and deploy `dist/` to a static host. `npm run preview` serves a local production preview. Configure dashboard routes to serve `index.html`, while missing assets return 404. An Nginx SPA route rule is `try_files $uri $uri/ /index.html;`.
 
 The development API proxy forwards `/api/v1` to `http://localhost:3000`. Demo login does not call it.
