@@ -6,12 +6,6 @@ export const LoginPage = lazy(() =>
   })),
 );
 
-export const RoleSelectPage = lazy(() =>
-  import("@/pages/auth/RoleSelectPage").then((module) => ({
-    default: module.RoleSelectPage,
-  })),
-);
-
 export const SessionExpiredPage = lazy(() =>
   import("@/pages/auth/SessionExpiredPage").then((module) => ({
     default: module.SessionExpiredPage,

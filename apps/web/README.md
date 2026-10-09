@@ -6,13 +6,15 @@ A standalone React dashboard with Admin, Support, Editor, Seller, and Buyer acco
 
 Use Node 22.12+ and npm. The committed npm lockfile defines dependency versions.
 
+The maintained baseline is Node 22.x (22.12 or newer), React 18.3.1, and the committed npm lockfile. A permissive engine range does not certify every newer Node major. Do not delete the lockfile or mix package managers. See [compatibility and dependency policy](./docs/MAINTENANCE.md) for exact resolved versions and known risks.
+
 ```sh
 cd apps/web
 npm ci
 npm run dev
 ```
 
-Choose an account on the home page, or open `/auth/login?panel=staff`, `?panel=seller`, or `?panel=buyer`.
+Opening `/` redirects to the login page. Choose a panel there, or open `/auth/login?panel=staff`, `?panel=seller`, or `?panel=buyer`.
 
 | Account | Email               | Password    |
 | ------- | ------------------- | ----------- |
@@ -57,6 +59,12 @@ The sibling `apps/shop` is independent and is not synchronized by this dashboard
 - `.env.example`: environment options; demo mode defaults to enabled.
 
 See [integration and customization](./docs/TEMPLATE.md).
+
+## Template releases and upgrades
+
+`package.json` version `0.1.0` identifies this template, not its React version. This is the current development baseline; no marketplace release history is implied. Template releases follow Semantic Versioning: patch fixes, minor compatible additions, and major changes requiring migration. While the template is pre-1.0, incompatible changes require an explicit migration notice and at least a minor bump.
+
+Read [CHANGELOG](./CHANGELOG.md) and [UPGRADE](./UPGRADE.md) before updating customized source. ZIP customers do not need access to this repository. Maintainers should follow the [release checklist](./docs/RELEASE.md). Dependency versions and the release number have not been changed by this maintenance setup.
 
 ## Checks
 

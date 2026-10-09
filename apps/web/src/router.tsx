@@ -1,6 +1,5 @@
 import {
   LoginPage,
-  RoleSelectPage,
   SessionExpiredPage,
   ForbiddenPage,
   NotFoundPage,
@@ -72,6 +71,7 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  redirect,
   useNavigate,
 } from "@tanstack/react-router";
 import { QueryClient, MutationCache } from "@tanstack/react-query";
@@ -147,7 +147,13 @@ const rootRoute = createRootRouteWithContext<AppRouterContext>()({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: RoleSelectPage,
+  beforeLoad: () => {
+    throw redirect({
+      to: "/auth/login",
+      search: { panel: "staff" },
+      replace: true,
+    });
+  },
 });
 
 const authLoginRoute = createRoute({
