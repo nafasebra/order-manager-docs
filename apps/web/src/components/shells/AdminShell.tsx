@@ -82,6 +82,7 @@ export function AdminShell({ user, onLogout, children }: AdminShellProps) {
               to: "/admin/transactions",
               icon: ArrowLeftRight,
             },
+            { label: "Settlements", to: "/admin/settlements", icon: ArrowLeftRight },
           ]
         : []),
     ] as NavItem[]),

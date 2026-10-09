@@ -2,6 +2,7 @@ import * as fixtures from "./fixtures";
 import { exportCouponState, restoreCouponState } from "@/lib/api/sellerCoupons";
 import { template } from "@/config/template";
 import { synchronizeDerivedData } from "./derived";
+import { settlements, restoreSettlements } from "@/lib/api/settlements";
 
 const key = "clean-commerce:data:v1";
 const collections = {
@@ -25,6 +26,7 @@ const collections = {
 function snapshot() {
   return {
     version: 1,
+    settlements,
     collections,
     siteContext: fixtures.siteContext,
     roles: fixtures.roleTemplates,
@@ -45,6 +47,7 @@ export function persistDemoData(): boolean {
   }
 }
 export function resetDemoData() {
+  restoreSettlements(structuredClone(initial.settlements));
   for (const name of Object.keys(collections) as (keyof typeof collections)[]) {
     const target = collections[name] as { id: string }[];
     target.splice(
@@ -89,6 +92,7 @@ function restore() {
       !stored.roles
     )
       return;
+    restoreSettlements(stored.settlements ?? []);
     restoreCouponState(stored.coupons);
     for (const name of Object.keys(
       collections,

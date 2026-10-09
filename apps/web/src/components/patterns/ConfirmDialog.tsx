@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 type ConfirmDialogProps = {
   open: boolean;
+  children?: ReactNode;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
@@ -29,6 +30,7 @@ type ConfirmDialogProps = {
 };
 
 export function ConfirmDialog({
+  children,
   open,
   onOpenChange,
   title,
@@ -68,6 +70,7 @@ export function ConfirmDialog({
             <AlertDialogDescription>{description}</AlertDialogDescription>
           ) : null}
         </AlertDialogHeader>
+        {children}
         {requireReason ? (
           <div className="space-y-2">
             <Label htmlFor="confirm-reason">{reasonLabel}</Label>

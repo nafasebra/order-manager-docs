@@ -1,5 +1,6 @@
 import {
   LoginPage,
+  AdminSettlementsPage,
   SessionExpiredPage,
   ForbiddenPage,
   NotFoundPage,
@@ -353,6 +354,13 @@ const adminTransactionsRoute = createRoute({
       />
     );
   },
+});
+
+const adminSettlementsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/settlements",
+  beforeLoad: ({ context }) => requireGrant(context, "transactions", "view"),
+  component: AdminSettlementsPage,
 });
 
 const adminTransactionDetailRoute = createRoute({
@@ -917,6 +925,7 @@ const routeTree = rootRoute.addChildren([
     adminInvoiceDetailRoute,
     adminTransactionsRoute,
     adminTransactionDetailRoute,
+    adminSettlementsRoute,
     adminBuyersRoute,
     adminBuyerDetailRoute,
     adminSellersRoute,

@@ -439,6 +439,7 @@ export function mutateResource(resource: string, input: unknown) {
       id: uid(),
       reference: `REF-${payment.reference}`,
       type: "refund" as const,
+      amount: -Math.abs(payment.amount),
       externalRef: `refund:${payment.id}`,
       note: text.parse(payload.reason),
       createdAt: at,

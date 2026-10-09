@@ -1,4 +1,7 @@
 import { lazy } from "react";
+export const AdminSettlementsPage = lazy(() =>
+  import("@/pages/admin/AdminSettlementsPage").then((module) => ({ default: module.AdminSettlementsPage })),
+);
 
 export const LoginPage = lazy(() =>
   import("@/pages/auth/LoginPage").then((module) => ({
