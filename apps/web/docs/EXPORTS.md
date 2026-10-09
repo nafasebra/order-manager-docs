@@ -1,6 +1,8 @@
 # Export module
 
-Import utilities from `@/lib/export`. No pages, buttons, or dependencies have been added. Call exports from a user action once the desired integration locations are chosen.
+Import utilities from `@/lib/export`. No dependencies have been added. DataTable now offers CSV and PDF actions for the current page in its displayed sort order, across admin, seller, and buyer tables. It exports only visible accessor columns, not action buttons or hidden record fields. Existing queries determine permission and tenant scope; no additional records are fetched. Empty/loading tables disable export.
+
+DataTable accepts `exports={false}` to disable downloads, or `exports={{ filename, title, columns }}` for an explicit field allowlist and formatted values. Without custom columns, primitive accessor values are used rather than JSX cell content; nested objects are not serialized. PDF opens native printing, not a direct PDF download. Paginated tables export only the current page, never all matching records.
 
 ```ts
 import { exportToCsv, exportToPdf, type ExportColumn } from "@/lib/export";
