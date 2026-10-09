@@ -483,6 +483,15 @@ export function useTransactions(params?: ListParams) {
   });
 }
 
+export function useOrderTransactions(orderId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["transactions", "order", orderId],
+    enabled,
+    queryFn: () =>
+      structuredClone(transactions.filter((item) => item.orderId === orderId)),
+  });
+}
+
 export function useTransaction(id: string) {
   return useQuery({
     queryKey: ["transactions", id],
