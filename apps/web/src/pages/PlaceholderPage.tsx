@@ -24,7 +24,7 @@ export function PlaceholderPage({
       />
       <EmptyState
         title={`${title} coming online`}
-        description="This MVP placeholder uses the Clean Commerce page recipe. Wire TanStack Query when the API is ready."
+        description="This MVP placeholder uses the mintcommerce page recipe. Wire TanStack Query when the API is ready."
       />
     </div>
   );

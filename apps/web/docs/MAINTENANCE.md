@@ -4,7 +4,7 @@
 
 Inspection date: 2026-10-08. Static file inspection only; no installs, builds, tests, registry outdated checks, or vulnerability audit were run for this task.
 
-- Standalone apps/web package: @clean-commerce/web, private, ESM, template version 0.1.0. package-lock.json root and package metadata agree; lockfileVersion is 3.
+- Standalone apps/web package: @mintcommerce/web, private, ESM, template version 0.1.0. package-lock.json root and package metadata agree; lockfileVersion is 3.
 - npm is the dashboard package manager. No root package/workspace manifest or repository-level .github configuration was present. apps/shop has its own pnpm lockfile, Next.js, and React 19; it is independent and outside this release policy.
 - Node engine is >=22.12.0; .nvmrc selects 22. Recommend maintaining Node 22.x >=22.12 as the current baseline, using its latest security patch. Record the exact Node and bundled npm versions actually validated in every release. No npm version is pinned yet.
 - Scripts provide type checking, ESLint, Prettier, Vitest coverage, and Vite build via npm run check. There is no inspected repository-level CI/CD or automated release packaging.

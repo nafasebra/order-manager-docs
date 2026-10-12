@@ -28,7 +28,7 @@ This is a manual, repeatable release process, not an automated publisher. No rel
 
 ## 4. Marketplace ZIP
 
-- [ ] Stage a clean, allowlisted copy rather than zipping the working repository. Suggested archive: clean-commerce-web-X.Y.Z.zip with source/ (the standalone apps/web project), documentation/, and release-manifest.json. Explain that customers run installation inside source/.
+- [ ] Stage a clean, allowlisted copy rather than zipping the working repository. Suggested archive: mintcommerce-web-X.Y.Z.zip with source/ (the standalone apps/web project), documentation/, and release-manifest.json. Explain that customers run installation inside source/.
 - [ ] Include source, public assets when present, index.html, package.json, package-lock.json, all required build/type/lint/test configuration, .nvmrc, .env.example, tests, README, CHANGELOG, UPGRADE, and docs. Include approved license/support information and required third-party notices.
 - [ ] Exclude node_modules, .git, dist unless intentionally supplied as a separately labeled preview, coverage, caches, logs, local environment files/secrets, customer data, and unrelated apps/shop or internal files.
 - [ ] Check screenshots, fonts, icons, and other assets for redistribution rights. Confirm marketplace requirements and the author's chosen licensing/support terms; this process does not assign a license.

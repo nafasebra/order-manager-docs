@@ -1,6 +1,6 @@
 /** Central defaults for the reusable dashboard. */
 export const template = {
-  brand: "Clean Commerce",
+  brand: "mintcommerce",
   currency: "GBP",
   locale: "en-GB",
   timeZone: "UTC",

@@ -557,11 +557,11 @@ export const crmContacts: CrmContact[] = [
 ];
 
 export const siteContext: SiteContext = {
-  name: "Clean Commerce Market",
+  name: "mintcommerce Market",
   tagline: "Trusted marketplace for modern shops",
-  contactEmail: "hello@cleancommerce.example",
+  contactEmail: "hello@mintcommerce.example",
   contactPhone: "+44 20 7946 0000",
-  defaultSeoTitle: "Clean Commerce Market",
+  defaultSeoTitle: "mintcommerce Market",
   defaultSeoDescription: "Buy and sell with confidence.",
   homepageCopy: "Discover products from independent sellers.",
 };

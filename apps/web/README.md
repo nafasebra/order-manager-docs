@@ -1,4 +1,4 @@
-# Clean Commerce dashboard template
+# mintcommerce dashboard template
 
 A standalone React dashboard with Admin, Support, Editor, Seller, and Buyer accounts. All business data is mock data. No backend is required.
 
